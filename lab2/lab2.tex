@@ -1,0 +1,117 @@
+\documentclass[11pt, a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{xeCJK} % 如果使用 pdflatex 请注释掉此行并使用其他中文支持方式
+
+\geometry{left=2.5cm, right=2.5cm, top=2.5cm, bottom=2.5cm}
+
+\title{LAB2 关系模式设计初稿与规范化分析}
+\author{成员：俞楚凡、赵敬彦}
+\date{2026-04-01}
+
+\begin{document}
+
+\maketitle
+
+\section{关系模式初稿 (Relational Schema)}\label{sec:schema}
+
+\textbf{符号说明}：下划线 \underline{字段} 表示主键 (PK)；后缀 $(FK)$ 表示外键。
+
+\subsection{人员与权限模块}
+\begin{itemize}
+    \item \textbf{人员基表 (People)}: 
+    \\ $(\underline{people\_id}, name, gender, phone, email)$
+    \item \textbf{学生表 (Student)}: 
+    \\ $(\underline{people\_id}(FK), student\_no, grade, major, dep\_id(FK))$
+    \item \textbf{教师表 (Teacher)}: 
+    \\ $(\underline{people\_id}(FK), staff\_no, title, dept\_id(FK))$
+    \item \textbf{用户表 (User)}: 
+    \\ $(\underline{user\_id}, people\_id(FK), verification\_status, username, password\_hash, role\_type, dep\_id(FK))$
+\end{itemize}
+
+\subsection{空间地理模块}
+\begin{itemize}
+    \item \textbf{校区表 (Campus)}: 
+    \\ $(\underline{campus\_id}, campus\_name, address)$
+    \item \textbf{建筑表 (Building)}: 
+    \\ $(\underline{building\_id}, building\_name, campus\_id(FK), building\_type, description)$
+    \item \textbf{地点表 (Location)}: 
+    \\ $(\underline{location\_id}, location\_name, building\_id(FK), facility\_type, description, open\_time)$
+\end{itemize}
+
+\subsection{组织、课程与活动模块}
+\begin{itemize}
+    \item \textbf{院系表 (Department)}: 
+    \\ $(\underline{dep\_id}, dep\_name, contact\_info, office\_location\_id(FK), manager\_id(FK), description)$
+    \item \textbf{课程表 (Course)}: 
+    \\ $(\underline{course\_id}, course\_name, teacher\_id(FK), dep\_id(FK), description)$
+    \item \textbf{校园活动表 (Event)}: 
+    \\ $(\underline{event\_id}, event\_name, event\_type, start\_time, location\_id(FK), host\_dep\_id(FK), description)$
+\end{itemize}
+
+\subsection{系统日志模块}
+\begin{itemize}
+    \item \textbf{问答记录表 (QueryRecord)}: 
+    \\ $(\underline{record\_id}, user\_id(FK), raw\_question, query\_time, query\_result)$
+\end{itemize}
+
+\section{关系设计}
+
+以下四个分块与第~\ref{sec:schema}~节各实体子节一一对应，便于逐块补充：参与实体、关系名/语义、基数（如 $1:N$）、以及必要的业务约束说明。
+
+\subsection{人员与权限模块}
+\begin{itemize}
+
+\end{itemize}
+
+\subsection{空间地理模块}
+\begin{itemize}
+
+\end{itemize}
+
+\subsection{组织、课程与活动模块}
+\begin{itemize}
+
+\end{itemize}
+
+\subsection{系统日志模块}
+\begin{itemize}
+
+\end{itemize}
+
+\vfill
+
+\section{主键与外键设计说明}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}llll@{}}
+\toprule
+\textbf{目标表} & \textbf{主键 (PK)} & \textbf{外键 (FK)} & \textbf{设计依据} \\ \midrule
+\textbf{Student/Teacher} & $people\_id$ & $people\_id \rightarrow People$ & 类表继承模式，解耦基础信息与角色属性。 \\
+\textbf{Building} & $building\_id$ & $campus\_id \rightarrow Campus$ & 建立地理包含关系，支持按校区统计。 \\
+\textbf{Location} & $location\_id$ & $building\_id \rightarrow Building$ & 细化建筑内部空间，区分设施类型。 \\
+\textbf{Event} & $event\_id$ & $location\_id \rightarrow Location$ & 关联具体地点，支持查询实时动态。 \\ \bottomrule
+\end{tabular}
+\end{table}
+
+\section{规范化分析 (Normalization Analysis)}
+
+\subsection{数据冗余 (Data Redundancy)}
+本设计严格遵循 \textbf{3NF}（第三范式）。通过在 $Course$ 表中仅存储 $teacher\_id$ 而非教师姓名，以及在 $Location$ 表中通过 $building\_id$ 级联，极大地降低了数据空间冗余，保证了信息的单一事实来源。
+
+\subsection{更新异常 (Update Anomalies)}
+由于建立了完整的外键约束，若“校区名称”发生变更，只需在 $Campus$ 表中修改一次。由于 $Building$ 和 $Location$ 的层级关系是通过外键维护的，不会出现部分数据未更新导致的空间层级混乱。
+
+\subsection{查询支持情况}
+\begin{itemize}
+    \item \textbf{复杂查询}：支持多表连接操作。例如查询某校区的所有食堂：
+    \[ \text{Result} = \text{Campus} \bowtie \text{Building} \bowtie \sigma_{\text{type='食堂'}}(\text{Location}) \]
+    \item \textbf{统计功能}：可直接通过 $Course$ 表的 $dept\_id$ 聚合统计各院系课程数量。
+    \item \textbf{NL2SQL 基础}：清晰的实体边界和外键关联为自然语言转 SQL 的语义解析提供了稳定的元数据基础。
+\end{itemize}
+
+\end{document}
