@@ -60,26 +60,50 @@
 
 \section{关系设计}
 
-以下四个分块与第~\ref{sec:schema}~节各实体子节一一对应，便于逐块补充：参与实体、关系名/语义、基数（如 $1:N$）、以及必要的业务约束说明。
+以下四个分块与第~\ref{sec:schema}~节各实体子节一一对应。
 
 \subsection{人员与权限模块}
 \begin{itemize}
-
+    \item \textbf{人员 --- 学生}（属于）\quad $1{:}1$\\
+    学生是人员的子类型，采用类表继承模式，通过共享主键 $people\_id$ 关联。每位学生恰好对应一条人员基表记录，反之不一定成立。
+    \item \textbf{人员 --- 教师}（属于）\quad $1{:}1$\\
+    教师是人员的子类型，同样通过 $people\_id$ 继承人员基表。同一 $people\_id$ 不应同时出现在 Student 和 Teacher 中。
+    \item \textbf{人员 --- 用户}（注册）\quad $1{:}1$\\
+    一个人员至多注册一个系统用户账号，$User.people\_id \rightarrow People.people\_id$。用户表额外承载身份验证与角色权限信息。
 \end{itemize}
 
 \subsection{空间地理模块}
 \begin{itemize}
-
+    \item \textbf{校区 --- 建筑}（拥有）\quad $1{:}N$\\
+    一个校区包含多栋建筑，$Building.campus\_id \rightarrow Campus.campus\_id$。删除校区需级联处理其下所有建筑。
+    \item \textbf{建筑 --- 地点}（拥有）\quad $1{:}N$\\
+    一栋建筑包含多个地点（教室、食堂、实验室等），$Location.building\_id \rightarrow Building.building\_id$。地理层次为：校区 $\supset$ 建筑 $\supset$ 地点。
 \end{itemize}
 
 \subsection{组织、课程与活动模块}
 \begin{itemize}
-
+    \item \textbf{院系 --- 学生}（拥有 / 隶属）\quad $1{:}N$\\
+    一个院系下有多名学生，$Student.dep\_id \rightarrow Department.dep\_id$。每名学生仅隶属于一个院系。
+    \item \textbf{院系 --- 教师}（拥有 / 隶属）\quad $1{:}N$\\
+    一个院系下有多名教师，$Teacher.dept\_id \rightarrow Department.dep\_id$。每名教师仅隶属于一个院系。
+    \item \textbf{人员 --- 院系}（负责 / 管理）\quad $1{:}1$\\
+    每个院系有一名负责人，$Department.manager\_id \rightarrow People.people\_id$。负责人须为本校在册人员。
+    \item \textbf{院系 --- 地点}（坐落 / 办公地点）\quad $N{:}1$\\
+    院系的办公地点位于某一地点，$Department.office\_location\_id \rightarrow Location.location\_id$。多个院系可共享同一办公地点。
+    \item \textbf{院系 --- 课程}（开设）\quad $1{:}N$\\
+    一个院系可开设多门课程，$Course.dep\_id \rightarrow Department.dep\_id$。每门课程归属于一个院系。
+    \item \textbf{教师 --- 课程}（教授）\quad $1{:}N$\\
+    一名教师可教授多门课程，$Course.teacher\_id \rightarrow Teacher.people\_id$。每门课程有且仅有一名主讲教师。
+    \item \textbf{院系 --- 校园活动}（举办）\quad $1{:}N$\\
+    一个院系可举办多个校园活动，$Event.host\_dep\_id \rightarrow Department.dep\_id$。
+    \item \textbf{地点 --- 校园活动}（位于 / 举办地点）\quad $1{:}N$\\
+    一个地点可承办多个校园活动，$Event.location\_id \rightarrow Location.location\_id$。活动时间不重叠时同一地点可复用。
 \end{itemize}
 
 \subsection{系统日志模块}
 \begin{itemize}
-
+    \item \textbf{用户 --- 问答记录}（产生）\quad $1{:}N$\\
+    一个用户可产生多条问答记录，$QueryRecord.user\_id \rightarrow User.user\_id$。记录仅追加写入，用于审计与问答质量分析。
 \end{itemize}
 
 \vfill
