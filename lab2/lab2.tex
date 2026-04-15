@@ -47,9 +47,15 @@
     \item \textbf{院系表 (Department)}: 
     \\ $(\underline{dep\_id}, dep\_name, contact\_info, office\_location\_id(FK), manager\_id(FK), description)$
     \item \textbf{课程表 (Course)}: 
-    \\ $(\underline{course\_id}, course\_name, teacher\_id(FK), dep\_id(FK), description)$
+    \\ $(\underline{course\_id}, course\_name, dep\_id(FK), description)$
     \item \textbf{校园活动表 (Event)}: 
     \\ $(\underline{event\_id}, event\_name, event\_type, start\_time, location\_id(FK), host\_dep\_id(FK), description)$
+    \item \textbf{教授关系表 (Teaching)}: 
+    \\ $(\underline{teacher\_id(FK),\ course\_id(FK)}, semester)$
+    \item \textbf{选课关系表 (Enrollment)}: 
+    \\ $(\underline{student\_id(FK),\ course\_id(FK)}, semester, grade)$
+    \item \textbf{活动参与表 (EventParticipation)}: 
+    \\ $(\underline{participant\_id(FK),\ event\_id(FK)}, register\_time)$
 \end{itemize}
 
 \subsection{系统日志模块}
@@ -92,8 +98,12 @@
     院系的办公地点位于某一地点，$Department.office\_location\_id \rightarrow Location.location\_id$。多个院系可共享同一办公地点。
     \item \textbf{院系 --- 课程}（开设）\quad $1{:}N$\\
     一个院系可开设多门课程，$Course.dep\_id \rightarrow Department.dep\_id$。每门课程归属于一个院系。
-    \item \textbf{教师 --- 课程}（教授）\quad $1{:}N$\\
-    一名教师可教授多门课程，$Course.teacher\_id \rightarrow Teacher.people\_id$。每门课程有且仅有一名主讲教师。
+    \item \textbf{教师 --- 课程}（教授）\quad $M{:}N$\\
+    一名教师可教授多门课程，一门课程也可由多名教师共同讲授。通过关联表 $Teaching(\underline{teacher\_id, course\_id})$ 实现，附带 $semester$ 区分学期。
+    \item \textbf{学生 --- 课程}（选课）\quad $M{:}N$\\
+    一名学生可选修多门课程，一门课程可被多名学生选修。通过关联表 $Enrollment(\underline{student\_id, course\_id})$ 实现，附带 $semester$、$grade$ 记录学期与成绩。
+    \item \textbf{学生 --- 校园活动}（参加）\quad $M{:}N$\\
+    一名学生可参加多个校园活动，一个校园活动可有多名学生参与。通过关联表 $EventParticipation(\underline{participant\_id, event\_id})$ 实现，附带 $register\_time$ 记录报名时间。
     \item \textbf{院系 --- 校园活动}（举办）\quad $1{:}N$\\
     一个院系可举办多个校园活动，$Event.host\_dep\_id \rightarrow Department.dep\_id$。
     \item \textbf{地点 --- 校园活动}（位于 / 举办地点）\quad $1{:}N$\\
