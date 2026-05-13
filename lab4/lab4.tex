@@ -1,0 +1,273 @@
+\documentclass[11pt, a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{xeCJK}
+
+\geometry{left=2.5cm, right=2.5cm, top=2.5cm, bottom=2.5cm}
+
+\title{LAB4 数据库物理实现、完整性约束测试与查询验证报告}
+\author{成员：俞楚凡、赵敬彦}
+\date{2026-05-13}
+
+\begin{document}
+
+\maketitle
+
+\section{实验目标}
+
+本次 Lab4 的目标是基于前序 Lab2/Lab3 的逻辑结构设计，完成数据库物理实现并给出可复现实验结果，具体包括：
+\begin{itemize}
+    \item 完成建表 SQL、主外键约束、检查约束、默认值约束与必要索引设计；
+    \item 确保数据库可正确创建，并可导入用于检查与联调的数据；
+    \item 通过黑盒方式验证完整性约束链路；
+    \item 通过代表性查询验证数据库支持基本存储、查询与后续功能联调。
+\end{itemize}
+
+\section{实验环境}
+
+\begin{itemize}
+    \item 操作系统：Linux 6.17.0-14-generic
+    \item 数据库：PostgreSQL 16
+    \item 客户端：psql
+    \item 测试数据库：\texttt{dbh\_pj}
+    \item 测试账号：\texttt{db}
+\end{itemize}
+
+\section{提交文件与职责划分}
+
+本次提交位于 \texttt{lab4/} 目录，核心文件如下：
+\begin{itemize}
+    \item \texttt{lab4\_schema\_seed.sql}：建表、约束、触发器、索引（不包含固定测试数据）；
+    \item \texttt{check.sql}：完整性约束黑盒检查脚本（包含正例初始化与负例验证）；
+    \item \texttt{lab4.md}：实现说明文档；
+    \item \texttt{lab4.tex}：本实验报告。
+\end{itemize}
+
+\section{数据库实现说明}
+
+\subsection{模式实现概览}
+
+系统共实现 14 张表：
+\begin{itemize}
+    \item 人员与权限：\texttt{People}、\texttt{Student}、\texttt{Teacher}、\texttt{SysUser}
+    \item 空间地理：\texttt{Campus}、\texttt{Building}、\texttt{Location}
+    \item 组织课程活动：\texttt{Department}、\texttt{Course}、\texttt{Teaching}、\texttt{Enrollment}、\texttt{Event}、\texttt{EventParticipation}
+    \item 日志：\texttt{QueryRecord}
+\end{itemize}
+
+\subsection{主要完整性约束方案}
+
+\begin{itemize}
+    \item \textbf{实体完整性}：实体表采用 \texttt{SERIAL PRIMARY KEY}，关系表采用联合主键；
+    \item \textbf{引用完整性}：按业务语义使用 \texttt{ON DELETE CASCADE / RESTRICT / SET NULL}；
+    \item \textbf{域完整性}：枚举与范围约束由 \texttt{CHECK} 保证；
+    \item \textbf{唯一性}：学号、工号、用户名及复合业务键使用 \texttt{UNIQUE}；
+    \item \textbf{默认值}：关键时间字段与状态字段使用 \texttt{DEFAULT CURRENT\_TIMESTAMP} 与 \texttt{DEFAULT 'pending'}；
+    \item \textbf{业务互斥规则}：通过触发器函数 \texttt{check\_person\_role()} 限制同一 \texttt{people\_id} 不可同时成为学生和教师。
+\end{itemize}
+
+\subsection{索引设计}
+
+在主键/唯一索引之外，补充二级索引以支持高频联表与筛选：
+\begin{itemize}
+    \item 地理模块：\texttt{idx\_building\_campus}、\texttt{idx\_location\_building}、\texttt{idx\_location\_type}
+    \item 人员课程模块：\texttt{idx\_student\_dep}、\texttt{idx\_teacher\_dept}、\texttt{idx\_course\_dep}
+    \item 关系与时间过滤：\texttt{idx\_teaching\_semester}、\texttt{idx\_enrollment\_semester}、\texttt{idx\_enrollment\_student}
+    \item 活动与日志：\texttt{idx\_event\_start\_time}、\texttt{idx\_event\_type}、\texttt{idx\_event\_host\_dep}、\texttt{idx\_queryrecord\_user}、\texttt{idx\_queryrecord\_time}
+\end{itemize}
+
+\section{执行步骤}
+
+\subsection{建库与建表}
+
+\begin{verbatim}
+psql -U db -d dbh_pj -h localhost -W -f lab4/lab4_schema_seed.sql
+\end{verbatim}
+
+执行结果要点：\texttt{BEGIN} 后依次完成 \texttt{DROP TABLE}、14 次 \texttt{CREATE TABLE}、触发器函数与触发器创建、14 个索引创建，最终 \texttt{COMMIT}，无报错。
+
+\subsection{完整性黑盒检查}
+
+\begin{verbatim}
+psql -U db -d dbh_pj -h localhost -W -v ON_ERROR_STOP=1 -f lab4/check.sql
+\end{verbatim}
+
+脚本先执行 \texttt{TRUNCATE ... RESTART IDENTITY CASCADE}，保证可重复测试；随后执行 Step 0 到 Step 8 的完整性覆盖检查。
+
+\section{测试结果}
+
+\subsection{完整性约束覆盖结果}
+
+\begin{longtable}{>{\raggedright\arraybackslash}p{3.2cm} >{\raggedright\arraybackslash}p{8.2cm} >{\raggedright\arraybackslash}p{3.0cm}}
+\toprule
+\textbf{约束类别} & \textbf{验证内容} & \textbf{结果} \\
+\midrule
+\endhead
+NOT NULL & \texttt{Course.course\_name} 插入 NULL 触发拒绝 & PASS \\
+UNIQUE & \texttt{People.phone}、\texttt{SysUser.username}、\texttt{Building(building\_name,campus\_id)} 重复插入拒绝 & PASS \\
+CHECK & 性别枚举、活动类型枚举、活动时间先后、学期格式、成绩范围 & PASS \\
+FK 存在性 & \texttt{Student.people\_id}、\texttt{Course.dep\_id} 引用不存在父记录拒绝 & PASS \\
+ON DELETE RESTRICT & 删除被 \texttt{Building} 引用的 \texttt{Campus} 被拒绝 & PASS \\
+ON DELETE SET NULL & 删除 \texttt{Department} 后 \texttt{Event.host\_dep\_id} 置空；删除 \texttt{Location} 后 \texttt{Event.location\_id} 置空 & PASS \\
+ON DELETE CASCADE & 删除 \texttt{SysUser} 后其 \texttt{QueryRecord} 级联删除 & PASS \\
+联合主键 & \texttt{Teaching}、\texttt{Enrollment}、\texttt{EventParticipation} 重复主键拒绝 & PASS \\
+触发器业务约束 & 同一人员重复注册为学生/教师互斥校验 & PASS \\
+DEFAULT & \texttt{verification\_status}、\texttt{created\_at}、\texttt{register\_time}、\texttt{query\_time} 自动填充 & PASS \\
+\bottomrule
+\end{longtable}
+
+脚本最终输出：\texttt{全部约束链路已完成黑盒覆盖测试}。
+
+\subsection{测试后数据规模}
+
+\begin{center}
+\begin{tabular}{l|r}
+\toprule
+\textbf{表名} & \textbf{记录数} \\
+\midrule
+Campus & 2 \\
+Building & 3 \\
+Location & 3 \\
+People & 6 \\
+Department & 2 \\
+Student & 2 \\
+Teacher & 2 \\
+SysUser & 2 \\
+Course & 2 \\
+Teaching & 2 \\
+Enrollment & 2 \\
+Event & 4 \\
+EventParticipation & 3 \\
+QueryRecord & 2 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{查询能力验证}
+
+为满足“支持基本查询与联调”的验收要求，本实验给出 6 条代表性查询，并附实际执行结果。
+
+\subsection{正确插入并保留的数据列表（check.sql 执行后）}
+
+\begin{itemize}
+    \item \textbf{Campus}: (1, 测试校区A, 地址A), (2, 测试校区B, 地址B)
+    \item \textbf{Building}: (1, 测试教学楼A, 1, 教学楼), (2, 测试图书馆B, 2, 图书馆), (4, SETNULL专用楼, 2, 教学楼)
+    \item \textbf{Location}: (1, A-101, 1, 教室, 08:00-21:00), (2, B-阅览室, 2, 图书馆, 08:00-22:00), (3, A-院办, 1, 办公室, 工作日)
+    \item \textbf{People}: (1, 学生甲, M, 13000000001, stu\_a@test.edu), (2, 学生乙, F, 13000000002, stu\_b@test.edu), (3, 教师甲, M, 13000000003, tea\_a@test.edu), (4, 教师乙, F, 13000000004, tea\_b@test.edu), (5, 管理员甲, O, 13000000005, admin\_a@test.edu), (6, 负责人甲, M, 13000000006, mgr\_a@test.edu)
+    \item \textbf{Department}: (1, 测试计科院, office\_location\_id=3, manager\_id=6), (2, 测试数院, office\_location\_id=3, manager\_id=NULL)
+    \item \textbf{Student}: (1, S0001, 大一, 计算机科学, dep\_id=1), (2, S0002, 大二, 数学, dep\_id=2)
+    \item \textbf{Teacher}: (3, T0001, 教授, dept\_id=1), (4, T0002, 副教授, dept\_id=2)
+    \item \textbf{SysUser}: (1, people\_id=1, user\_stu\_a, student, pending), (2, people\_id=3, user\_tea\_a, teacher, verified)
+    \item \textbf{Course}: (1, 数据库系统, dep\_id=1), (2, 高等代数, dep\_id=2)
+    \item \textbf{Teaching}: (teacher\_id=3, course\_id=1, 2025-2026-1), (teacher\_id=4, course\_id=2, 2025-2026-2)
+    \item \textbf{Enrollment}: (student\_id=1, course\_id=1, 2025-2026-1, 95.00), (student\_id=2, course\_id=2, 2025-2026-2, NULL)
+    \item \textbf{Event}: (1, 测试讲座A, 讲座, 2026-06-01 10:00:00, location\_id=1, host\_dep\_id=1), (2, 测试论坛B, 论坛, 2026-06-02 15:00:00, location\_id=2, host\_dep\_id=2), (5, SETNULL测试活动, 讲座, 2026-06-05 10:00:00, location\_id=1, host\_dep\_id=NULL), (6, SETNULL地点活动, 论坛, 2026-06-06 10:00:00, location\_id=NULL, host\_dep\_id=1)
+    \item \textbf{EventParticipation}: (1,1,2026-05-13 18:50:26.254383), (2,2,2026-05-13 18:50:26.254383), (3,1,2026-05-13 18:50:26.254383)
+    \item \textbf{QueryRecord}: (1, user\_id=1, 测试问题1, 2026-05-13 18:50:26.254383, 测试回答1), (2, user\_id=2, 测试问题2, 2026-05-13 18:50:26.254383, NULL)
+\end{itemize}
+
+\subsection{六条查询与实测结果}
+
+\subsubsection*{Q1：按校区查询图书馆地点}
+\begin{verbatim}
+SELECT c.campus_name,b.building_name,l.location_name,l.open_time
+FROM Campus c
+JOIN Building b ON b.campus_id=c.campus_id
+JOIN Location l ON l.building_id=b.building_id
+WHERE l.facility_type='图书馆'
+ORDER BY c.campus_name,b.building_name;
+\end{verbatim}
+\textbf{结果：}
+\begin{verbatim}
+测试校区B | 测试图书馆B | B-阅览室 | 08:00-22:00
+\end{verbatim}
+
+\subsubsection*{Q2：学生选课与成绩（多表连接）}
+\begin{verbatim}
+SELECT p.name, s.student_no, c.course_name, e.semester, e.grade
+FROM Enrollment e
+JOIN Student s ON s.people_id=e.student_id
+JOIN People p ON p.people_id=s.people_id
+JOIN Course c ON c.course_id=e.course_id
+ORDER BY p.name, c.course_name;
+\end{verbatim}
+\textbf{结果：}
+\begin{verbatim}
+学生乙 | S0002 | 高等代数   | 2025-2026-2 | NULL
+学生甲 | S0001 | 数据库系统 | 2025-2026-1 | 95.00
+\end{verbatim}
+
+\subsubsection*{Q3：课程授课教师查询}
+\begin{verbatim}
+SELECT c.course_name,te.semester,p.name AS teacher_name,t.title
+FROM Teaching te
+JOIN Teacher t ON t.people_id=te.teacher_id
+JOIN People p ON p.people_id=t.people_id
+JOIN Course c ON c.course_id=te.course_id
+ORDER BY c.course_name;
+\end{verbatim}
+\textbf{结果：}
+\begin{verbatim}
+数据库系统 | 2025-2026-1 | 教师甲 | 教授
+高等代数   | 2025-2026-2 | 教师乙 | 副教授
+\end{verbatim}
+
+\subsubsection*{Q4：讲座活动列表（含院系与地点）}
+\begin{verbatim}
+SELECT e.event_name,e.start_time,d.dep_name,l.location_name
+FROM Event e
+LEFT JOIN Department d ON d.dep_id=e.host_dep_id
+LEFT JOIN Location l ON l.location_id=e.location_id
+WHERE e.event_type='讲座'
+ORDER BY e.start_time;
+\end{verbatim}
+\textbf{结果：}
+\begin{verbatim}
+测试讲座A       | 2026-06-01 10:00:00 | 测试计科院 | A-101
+SETNULL测试活动 | 2026-06-05 10:00:00 | NULL      | A-101
+\end{verbatim}
+
+\subsubsection*{Q5：统计各院系课程数量（聚合）}
+\begin{verbatim}
+SELECT d.dep_name, COUNT(c.course_id) AS course_cnt
+FROM Department d
+LEFT JOIN Course c ON c.dep_id=d.dep_id
+GROUP BY d.dep_id, d.dep_name
+ORDER BY course_cnt DESC, d.dep_name;
+\end{verbatim}
+\textbf{结果：}
+\begin{verbatim}
+测试数院   | 1
+测试计科院 | 1
+\end{verbatim}
+
+\subsubsection*{Q6：查询最近问答记录}
+\begin{verbatim}
+SELECT u.username,r.raw_question,r.query_time,r.query_result
+FROM QueryRecord r
+JOIN SysUser u ON u.user_id=r.user_id
+ORDER BY r.query_time DESC
+LIMIT 10;
+\end{verbatim}
+\textbf{结果：}
+\begin{verbatim}
+user_stu_a | 测试问题1 | 2026-05-13 18:50:26.254383 | 测试回答1
+user_tea_a | 测试问题2 | 2026-05-13 18:50:26.254383 | NULL
+\end{verbatim}
+
+\section{结果分析与结论}
+
+\begin{itemize}
+    \item \textbf{可创建}：数据库对象（表、约束、触发器、索引）可一次性成功创建；
+    \item \textbf{可导入}：检查脚本可自动导入测试数据并重复执行；
+    \item \textbf{可存储}：正例数据可稳定写入；
+    \item \textbf{可查询}：联表、过滤、聚合查询均返回合理结果；
+    \item \textbf{可联调}：完整性约束链路经黑盒验证，可支撑后续应用功能联调。
+\end{itemize}
+
+\end{document}
