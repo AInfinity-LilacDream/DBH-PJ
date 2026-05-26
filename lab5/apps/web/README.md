@@ -2,6 +2,8 @@
 
 React frontend workspace.
 
+The login and registration page is available at `/user/login` and uses React with HeroUI components.
+
 ```text
 src/
   assets/      Static frontend assets
