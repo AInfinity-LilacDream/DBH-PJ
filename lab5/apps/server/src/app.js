@@ -2,6 +2,7 @@ import cors from "cors";
 import express from "express";
 import { env } from "./config/env.js";
 import { authRoutes } from "./routes/authRoutes.js";
+import { catalogRoutes } from "./routes/catalogRoutes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 
 export const app = express();
@@ -14,6 +15,7 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api", catalogRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({ message: "接口不存在" });
