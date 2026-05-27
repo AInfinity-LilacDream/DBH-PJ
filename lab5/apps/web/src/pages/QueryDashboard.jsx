@@ -6,7 +6,7 @@ import { QueryTopHeader } from "../components/query/QueryTopHeader.jsx";
 import { QueryMobileNav } from "../components/query/QueryMobileNav.jsx";
 import { QueryContentPanel } from "../components/query/QueryContentPanel.jsx";
 
-export function QueryDashboard({ user, onEnterAdmin, onLogout }) {
+export function QueryDashboard({ user, onEnterAccount, onEnterAdmin, onLogout }) {
   const isAdmin = user?.roleType === "admin";
   const [activeKey, setActiveKey] = useState(queryNavItems[0].key);
   const activeItem = queryNavItems.find((item) => item.key === activeKey) ?? queryNavItems[0];
@@ -14,6 +14,11 @@ export function QueryDashboard({ user, onEnterAdmin, onLogout }) {
   const roleText = roleTextMap[user?.roleType] ?? user?.roleType ?? "未登录";
 
   function handleSettingsAction(key) {
+    if (key === "account") {
+      onEnterAccount();
+      return;
+    }
+
     if (key === "admin") {
       onEnterAdmin();
       return;

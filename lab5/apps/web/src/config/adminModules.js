@@ -25,6 +25,14 @@ export const optionSets = {
     ["verified", "已认证"],
     ["rejected", "已拒绝"]
   ],
+  personType: [
+    ["student", "学生"],
+    ["teacher", "教师"]
+  ],
+  grade: ["大一", "大二", "大三", "大四", "研一", "研二", "研三", "博一", "博二", "博三", "博四", "其他"].map(
+    (item) => [item, item]
+  ),
+  teacherTitle: ["助教", "讲师", "副教授", "教授", "研究员", "特聘教授", "其他"].map((item) => [item, item]),
   facilityType: ["教室", "食堂", "咖啡店", "自习室", "图书馆", "实验室", "运动场地", "办公室", "医务室", "其他"].map(
     (item) => [item, item]
   ),
@@ -156,18 +164,71 @@ export const adminModules = [
     api: peopleApi,
     label: "人员",
     tableName: "People",
-    description: "维护真实人员档案（姓名、性别、联系方式）。删除人员会级联删除其登录账号与学生/教师扩展信息。",
+    description: "维护真实人员档案，并按学生或教师写入对应扩展信息。",
     fields: [
+      { key: "personType", label: "人员类型", type: "select", options: "personType", required: true },
       { key: "name", label: "姓名", required: true },
       { key: "gender", label: "性别", type: "select", options: "gender", required: true },
       { key: "phone", label: "手机号" },
-      { key: "email", label: "邮箱" }
+      { key: "email", label: "邮箱" },
+      {
+        key: "studentNo",
+        label: "学号",
+        visibleWhen: { key: "personType", value: "student" },
+        required: true
+      },
+      {
+        key: "grade",
+        label: "年级",
+        type: "select",
+        options: "grade",
+        visibleWhen: { key: "personType", value: "student" },
+        required: true
+      },
+      {
+        key: "major",
+        label: "专业",
+        visibleWhen: { key: "personType", value: "student" },
+        required: true
+      },
+      {
+        key: "studentDepId",
+        label: "所属院系",
+        type: "fk-select",
+        options: "departments",
+        visibleWhen: { key: "personType", value: "student" },
+        required: true
+      },
+      {
+        key: "staffNo",
+        label: "工号",
+        visibleWhen: { key: "personType", value: "teacher" },
+        required: true
+      },
+      {
+        key: "title",
+        label: "职称",
+        type: "select",
+        options: "teacherTitle",
+        visibleWhen: { key: "personType", value: "teacher" },
+        required: true
+      },
+      {
+        key: "teacherDeptId",
+        label: "所属院系",
+        type: "fk-select",
+        options: "departments",
+        visibleWhen: { key: "personType", value: "teacher" },
+        required: true
+      }
     ],
     columns: [
       { key: "name", label: "姓名" },
+      { key: "personType", label: "类型", format: "personType" },
+      { key: "workNo", label: "学工号" },
       { key: "gender", label: "性别", format: "gender" },
-      { key: "phone", label: "手机号" },
-      { key: "email", label: "邮箱" }
+      { key: "departmentName", label: "所属院系" },
+      { key: "extensionInfo", label: "扩展信息" }
     ]
   },
   {
@@ -176,15 +237,14 @@ export const adminModules = [
     label: "用户",
     tableName: "SysUser",
     description:
-      "维护系统登录账号，须关联已有人员。一人仅可有一个账号。密码留空时编辑不修改原密码；新建默认密码为 123456。",
+      "维护系统登录账号。账号可以暂时不绑定人员；密码留空时编辑不修改原密码，新建默认密码为 123456。",
     fields: [
       {
         key: "peopleId",
         label: "关联人员",
         type: "fk-select",
         options: "people",
-        required: true,
-        immutableOnEdit: true
+        allowEmpty: true
       },
       { key: "username", label: "用户名", required: true },
       { key: "password", label: "密码", type: "password" },

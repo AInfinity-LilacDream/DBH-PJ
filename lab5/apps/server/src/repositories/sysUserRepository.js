@@ -7,14 +7,14 @@ export async function listAll() {
     SELECT
       u.user_id AS id,
       u.people_id AS "peopleId",
-      p.name AS "personName",
+      COALESCE(p.name, '未绑定人员') AS "personName",
       u.username,
       u.role_type AS "roleType",
       u.verification_status AS "verificationStatus",
       u.dep_id AS "depId",
       COALESCE(d.dep_name, '') AS "departmentName"
     FROM sysuser u
-    JOIN people p ON p.people_id = u.people_id
+    LEFT JOIN people p ON p.people_id = u.people_id
     LEFT JOIN department d ON d.dep_id = u.dep_id
     ORDER BY u.user_id DESC
   `);
@@ -23,7 +23,7 @@ export async function listAll() {
 }
 
 export async function create(payload) {
-  const peopleId = Number(payload.peopleId);
+  const peopleId = optionalText(payload.peopleId) ? Number(payload.peopleId) : null;
   const passwordHash = await hashPassword(optionalText(payload.password) || "123456");
 
   const result = await query(
@@ -48,20 +48,23 @@ export async function create(payload) {
 export async function update(id, payload) {
   const password = optionalText(payload.password);
   const depId = optionalText(payload.depId) ? Number(payload.depId) : null;
+  const peopleId = optionalText(payload.peopleId) ? Number(payload.peopleId) : null;
 
   const result = password
     ? await query(
         `
           UPDATE SysUser
-          SET username = $1,
-              role_type = $2,
-              verification_status = $3,
-              dep_id = $4,
-              password_hash = $5
-          WHERE user_id = $6
+          SET people_id = $1,
+              username = $2,
+              role_type = $3,
+              verification_status = $4,
+              dep_id = $5,
+              password_hash = $6
+          WHERE user_id = $7
           RETURNING user_id AS id
         `,
         [
+          peopleId,
           requireText(payload.username, "用户名"),
           requireText(payload.roleType, "账号角色"),
           optionalText(payload.verificationStatus) || "pending",
@@ -73,14 +76,16 @@ export async function update(id, payload) {
     : await query(
         `
           UPDATE SysUser
-          SET username = $1,
-              role_type = $2,
-              verification_status = $3,
-              dep_id = $4
-          WHERE user_id = $5
+          SET people_id = $1,
+              username = $2,
+              role_type = $3,
+              verification_status = $4,
+              dep_id = $5
+          WHERE user_id = $6
           RETURNING user_id AS id
         `,
         [
+          peopleId,
           requireText(payload.username, "用户名"),
           requireText(payload.roleType, "账号角色"),
           optionalText(payload.verificationStatus) || "pending",

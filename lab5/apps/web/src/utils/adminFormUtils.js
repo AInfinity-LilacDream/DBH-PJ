@@ -23,6 +23,10 @@ function formatDateTimeDisplay(value) {
 
 export function normalizeFormValues(activeModule, row) {
   if (!row) {
+    if (activeModule.key === "people") {
+      return { personType: "student", gender: "O", grade: "大一", title: "讲师" };
+    }
+
     return {};
   }
 
@@ -53,6 +57,10 @@ export function displayValue(value, column) {
 
   if (column?.format === "verificationStatus") {
     return verificationTextMap[value] ?? "未填写";
+  }
+
+  if (column?.format === "personType") {
+    return value === "student" ? "学生" : value === "teacher" ? "教师" : "未填写";
   }
 
   if (value === null || value === undefined || value === "") {

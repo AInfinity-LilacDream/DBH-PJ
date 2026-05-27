@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Button } from "@heroui/react";
+import { AccountPage } from "./pages/AccountPage.jsx";
 import { AdminDashboard } from "./pages/AdminDashboard.jsx";
 import { LoginPage } from "./pages/LoginPage.jsx";
 import { QueryDashboard } from "./pages/QueryDashboard.jsx";
@@ -66,8 +67,23 @@ export function App() {
     navigate("/admin/homepage");
   }
 
+  function enterAccount() {
+    navigate("/user/account");
+  }
+
   function backHome() {
     navigate("/homepage");
+  }
+
+  function updateSessionUser(nextUser) {
+    const nextSession = {
+      ...session,
+      user: nextUser,
+      expiresAt: Date.now() + SESSION_TTL_MS
+    };
+
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(nextSession));
+    setSession(nextSession);
   }
 
   useEffect(() => {
@@ -85,7 +101,7 @@ export function App() {
       return;
     }
 
-    if ((path === "/homepage" || path === "/admin/homepage") && !session) {
+    if ((path === "/homepage" || path === "/admin/homepage" || path === "/user/account") && !session) {
       navigate("/user/login", { replace: true });
     }
   }, [path, session]);
@@ -102,8 +118,23 @@ export function App() {
     return (
       <QueryDashboard
         user={session.user}
+        onEnterAccount={enterAccount}
         onEnterAdmin={enterAdmin}
         onLogout={handleLogout}
+      />
+    );
+  }
+
+  if (path === "/user/account") {
+    if (!session) {
+      return <LoginPage onAuthenticated={handleAuthenticated} />;
+    }
+
+    return (
+      <AccountPage
+        user={session.user}
+        onBackHome={backHome}
+        onSessionUpdate={updateSessionUser}
       />
     );
   }

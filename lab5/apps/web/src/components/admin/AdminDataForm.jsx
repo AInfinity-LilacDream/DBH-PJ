@@ -30,6 +30,10 @@ export function AdminDataForm({ activeModule, fieldOptionMap, initialValues, isS
   return (
     <form className="grid content-start gap-4" onSubmit={handleSubmit}>
       {activeModule.fields.map((field) => {
+        if (field.visibleWhen && formValues[field.visibleWhen.key] !== field.visibleWhen.value) {
+          return null;
+        }
+
         if (field.immutableOnEdit && initialValues) {
           const options = fieldOptionMap[field.options] ?? [];
           const label =

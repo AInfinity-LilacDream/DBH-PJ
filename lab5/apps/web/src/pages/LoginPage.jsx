@@ -5,8 +5,6 @@ import {
   CardBody,
   CardHeader,
   Input,
-  Select,
-  SelectItem,
   Tab,
   Tabs
 } from "@heroui/react";
@@ -14,26 +12,9 @@ import { login, register } from "../services/authApi.js";
 import { cleanInputClassNames } from "../styles/inputClassNames.js";
 
 const initialForm = {
-  name: "",
   username: "",
-  password: "",
-  gender: "O",
-  roleType: "student",
-  phone: "",
-  email: ""
+  password: ""
 };
-
-const genderOptions = [
-  { key: "M", label: "男" },
-  { key: "F", label: "女" },
-  { key: "O", label: "其他" }
-];
-
-const roleOptions = [
-  { key: "student", label: "学生" },
-  { key: "teacher", label: "教师" },
-  { key: "admin", label: "管理员" }
-];
 
 export function LoginPage({ onAuthenticated }) {
   const [mode, setMode] = useState("login");
@@ -42,7 +23,7 @@ export function LoginPage({ onAuthenticated }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isRegister = mode === "register";
-  const title = isRegister ? "创建账号" : "账号登录";
+  const title = isRegister ? "用户注册" : "账号登录";
   const submitLabel = isSubmitting ? "处理中..." : isRegister ? "注册" : "登录";
 
   function updateField(name, value) {
@@ -61,7 +42,7 @@ export function LoginPage({ onAuthenticated }) {
 
     try {
       const payload = isRegister
-        ? form
+        ? { username: form.username, password: form.password }
         : { username: form.username, password: form.password };
       const result = isRegister ? await register(payload) : await login(payload);
 
@@ -107,104 +88,44 @@ export function LoginPage({ onAuthenticated }) {
             </Tabs>
           </CardHeader>
 
-          <CardBody className="flex items-center justify-center px-0 pb-0">
-            <form className="flex w-full max-w-md flex-col justify-center gap-5" onSubmit={handleSubmit}>
-              <h2 className="text-center text-3xl font-black text-slate-800">{title}</h2>
+          <CardBody className="flex justify-center px-0 pb-0">
+            <form className="flex min-h-[420px] w-full max-w-md flex-col" onSubmit={handleSubmit}>
+              <div className="flex min-h-[150px] items-center justify-center">
+                <h2 className="text-center text-3xl font-black text-slate-800">{title}</h2>
+              </div>
 
-              {isRegister && (
-                <>
-                  <Input
-                    label="姓名"
-                    value={form.name}
-                    classNames={cleanInputClassNames}
-                    onValueChange={(value) => updateField("name", value)}
-                    placeholder="姓名"
-                    autoComplete="name"
-                    variant="bordered"
-                    isRequired
-                  />
+              <div className="grid gap-5">
+                <Input
+                  label="用户名"
+                  value={form.username}
+                  classNames={cleanInputClassNames}
+                  onValueChange={(value) => updateField("username", value)}
+                  placeholder="用户名"
+                  autoComplete="username"
+                  variant="bordered"
+                  isRequired
+                />
 
-                  <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
-                    <Select
-                      label="性别"
-                      selectedKeys={[form.gender]}
-                      onSelectionChange={(keys) => updateField("gender", Array.from(keys)[0])}
-                      variant="bordered"
-                    >
-                      {genderOptions.map((item) => (
-                        <SelectItem key={item.key}>{item.label}</SelectItem>
-                      ))}
-                    </Select>
+                <Input
+                  label="密码"
+                  type="password"
+                  value={form.password}
+                  classNames={cleanInputClassNames}
+                  onValueChange={(value) => updateField("password", value)}
+                  placeholder="密码"
+                  autoComplete={isRegister ? "new-password" : "current-password"}
+                  variant="bordered"
+                  isRequired
+                />
 
-                    <Select
-                      label="角色"
-                      selectedKeys={[form.roleType]}
-                      onSelectionChange={(keys) => updateField("roleType", Array.from(keys)[0])}
-                      variant="bordered"
-                    >
-                      {roleOptions.map((item) => (
-                        <SelectItem key={item.key}>{item.label}</SelectItem>
-                      ))}
-                    </Select>
-                  </div>
-                </>
-              )}
+                <Button color="primary" type="submit" isLoading={isSubmitting} fullWidth radius="sm">
+                  {submitLabel}
+                </Button>
 
-              <Input
-                label="用户名"
-                value={form.username}
-                classNames={cleanInputClassNames}
-                onValueChange={(value) => updateField("username", value)}
-                placeholder="用户名"
-                autoComplete="username"
-                variant="bordered"
-                isRequired
-              />
-
-              <Input
-                label="密码"
-                type="password"
-                value={form.password}
-                classNames={cleanInputClassNames}
-                onValueChange={(value) => updateField("password", value)}
-                placeholder="密码"
-                autoComplete={isRegister ? "new-password" : "current-password"}
-                variant="bordered"
-                isRequired
-              />
-
-              {isRegister && (
-                <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
-                  <Input
-                    label="手机号"
-                    value={form.phone}
-                    classNames={cleanInputClassNames}
-                    onValueChange={(value) => updateField("phone", value)}
-                    placeholder="可选"
-                    autoComplete="tel"
-                    variant="bordered"
-                  />
-
-                  <Input
-                    label="邮箱"
-                    type="email"
-                    value={form.email}
-                    classNames={cleanInputClassNames}
-                    onValueChange={(value) => updateField("email", value)}
-                    placeholder="可选"
-                    autoComplete="email"
-                    variant="bordered"
-                  />
-                </div>
-              )}
-
-              <Button color="primary" type="submit" isLoading={isSubmitting} fullWidth radius="sm">
-                {submitLabel}
-              </Button>
-
-              {message && (
-                <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{message}</p>
-              )}
+                {message && (
+                  <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{message}</p>
+                )}
+              </div>
             </form>
           </CardBody>
         </Card>

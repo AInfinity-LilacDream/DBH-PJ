@@ -1,4 +1,4 @@
-import { query, withTransaction } from "../db/pool.js";
+import { query } from "../db/pool.js";
 
 const publicUserColumns = `
   u.user_id AS "userId",
@@ -8,7 +8,7 @@ const publicUserColumns = `
   u.verification_status AS "verificationStatus",
   u.dep_id AS "depId",
   u.created_at AS "createdAt",
-  p.name,
+  COALESCE(p.name, u.username) AS name,
   p.gender,
   p.phone,
   p.email
@@ -16,7 +16,7 @@ const publicUserColumns = `
 
 const userFrom = `
   FROM sysuser u
-  JOIN people p ON p.people_id = u.people_id
+  LEFT JOIN people p ON p.people_id = u.people_id
 `;
 
 export async function findAuthUserByUsername(username) {
@@ -35,38 +35,25 @@ export async function findAuthUserByUsername(username) {
   return result.rows[0] ?? null;
 }
 
-export async function createUser({ name, gender, phone, email, username, passwordHash, roleType }) {
-  return withTransaction(async (client) => {
-    const peopleResult = await client.query(
-      `
-        INSERT INTO people (name, gender, phone, email)
-        VALUES ($1, $2, NULLIF($3, ''), NULLIF($4, ''))
-        RETURNING people_id
-      `,
-      [name, gender, phone ?? "", email ?? ""]
-    );
+export async function createPendingUser({ username, passwordHash }) {
+  const userResult = await query(
+    `
+      INSERT INTO sysuser (people_id, username, password_hash, role_type, verification_status)
+      VALUES (NULL, $1, $2, 'student', 'pending')
+      RETURNING user_id
+    `,
+    [username, passwordHash]
+  );
 
-    const peopleId = peopleResult.rows[0].people_id;
+  const publicUserResult = await query(
+    `
+      SELECT ${publicUserColumns}
+      ${userFrom}
+      WHERE u.user_id = $1
+      LIMIT 1
+    `,
+    [userResult.rows[0].user_id]
+  );
 
-    const userResult = await client.query(
-      `
-        INSERT INTO sysuser (people_id, username, password_hash, role_type, verification_status)
-        VALUES ($1, $2, $3, $4, 'verified')
-        RETURNING user_id
-      `,
-      [peopleId, username, passwordHash, roleType]
-    );
-
-    const publicUserResult = await client.query(
-      `
-        SELECT ${publicUserColumns}
-        ${userFrom}
-        WHERE u.user_id = $1
-        LIMIT 1
-      `,
-      [userResult.rows[0].user_id]
-    );
-
-    return publicUserResult.rows[0];
-  });
+  return publicUserResult.rows[0];
 }
