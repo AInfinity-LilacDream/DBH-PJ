@@ -7,7 +7,11 @@ import {
   courseController,
   eventController,
   peopleController,
-  sysUserController
+  sysUserController,
+  teachingController,
+  enrollmentController,
+  eventParticipationController,
+  queryRecordController
 } from "../controllers/adminControllers.js";
 import * as fieldOptionsController from "../controllers/fieldOptionsController.js";
 import { registerCrudRoutes } from "../utils/registerCrudRoutes.js";
@@ -24,7 +28,11 @@ const adminResources = [
   ["courses", courseController],
   ["events", eventController],
   ["people", peopleController],
-  ["users", sysUserController]
+  ["users", sysUserController],
+  ["teachings", teachingController],
+  ["enrollments", enrollmentController],
+  ["event-participations", eventParticipationController],
+  ["query-records", queryRecordController]
 ];
 
 for (const [resource, controller] of adminResources) {

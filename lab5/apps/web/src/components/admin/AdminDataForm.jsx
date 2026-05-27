@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
+  Autocomplete,
+  AutocompleteItem,
   Button,
   Input,
   ModalFooter,
@@ -7,11 +9,21 @@ import {
   SelectItem,
   Textarea
 } from "@heroui/react";
+import { DatePicker } from "@heroui/date-picker";
+import { parseDateTime } from "@internationalized/date";
 import { optionSets } from "../../config/adminModules.js";
 import { normalizeFormValues } from "../../utils/adminFormUtils.js";
 import { cleanInputClassNames } from "../../styles/inputClassNames.js";
 
-export function AdminDataForm({ activeModule, fieldOptionMap, initialValues, isSubmitting, onSubmit, onClose }) {
+export function AdminDataForm({
+  activeModule,
+  fieldOptionMap,
+  initialValues,
+  isSubmitting,
+  onSubmit,
+  onClose,
+  onSearchFieldOptions
+}) {
   const [formValues, setFormValues] = useState(() => normalizeFormValues(activeModule, initialValues));
 
   useEffect(() => {
@@ -25,6 +37,22 @@ export function AdminDataForm({ activeModule, fieldOptionMap, initialValues, isS
   function handleSubmit(event) {
     event.preventDefault();
     onSubmit(formValues);
+  }
+
+  function renderLabel(field) {
+    return field.label;
+  }
+
+  function toDatePickerValue(value) {
+    if (!value) {
+      return null;
+    }
+
+    try {
+      return parseDateTime(String(value).slice(0, 16));
+    } catch {
+      return null;
+    }
   }
 
   return (
@@ -45,8 +73,9 @@ export function AdminDataForm({ activeModule, fieldOptionMap, initialValues, isS
             <Input
               key={field.key}
               isReadOnly
-              label={field.label}
+              label={renderLabel(field)}
               classNames={cleanInputClassNames}
+              isRequired={field.required}
               radius="sm"
               value={label}
               variant="bordered"
@@ -58,8 +87,9 @@ export function AdminDataForm({ activeModule, fieldOptionMap, initialValues, isS
           return (
             <Textarea
               key={field.key}
-              label={field.label}
+              label={renderLabel(field)}
               classNames={cleanInputClassNames}
+              isRequired={field.required}
               minRows={3}
               radius="sm"
               value={formValues[field.key] ?? ""}
@@ -69,11 +99,28 @@ export function AdminDataForm({ activeModule, fieldOptionMap, initialValues, isS
           );
         }
 
+        if (field.type === "datetime-local") {
+          return (
+            <DatePicker
+              key={field.key}
+              label={renderLabel(field)}
+              granularity="minute"
+              hideTimeZone
+              isRequired={field.required}
+              radius="sm"
+              value={toDatePickerValue(formValues[field.key])}
+              variant="bordered"
+              onChange={(value) => updateField(field.key, value ? value.toString().slice(0, 16) : "")}
+            />
+          );
+        }
+
         if (field.type === "select") {
           return (
             <Select
               key={field.key}
-              label={field.label}
+              label={renderLabel(field)}
+              isRequired={field.required}
               radius="sm"
               selectedKeys={formValues[field.key] ? [String(formValues[field.key])] : []}
               variant="bordered"
@@ -90,34 +137,42 @@ export function AdminDataForm({ activeModule, fieldOptionMap, initialValues, isS
           const options = fieldOptionMap[field.options] ?? [];
           const emptyKey = "__none__";
           const currentValue = formValues[field.key];
-          const selectedKeys = currentValue ? [String(currentValue)] : field.allowEmpty ? [emptyKey] : [];
+          const selectedKey = currentValue ? String(currentValue) : field.allowEmpty ? emptyKey : null;
 
           return (
-            <Select
+            <Autocomplete
               key={field.key}
-              label={field.label}
+              label={renderLabel(field)}
+              allowsCustomValue={false}
+              defaultItems={[
+                ...(field.allowEmpty ? [{ value: emptyKey, label: "不选择" }] : []),
+                ...options
+              ]}
+              isRequired={field.required}
               isLoading={options.length === 0}
+              menuTrigger="focus"
               radius="sm"
-              selectedKeys={selectedKeys}
+              selectedKey={selectedKey}
               variant="bordered"
-              onSelectionChange={(keys) => {
-                const value = Array.from(keys)[0] ?? "";
+              onInputChange={(value) => onSearchFieldOptions?.(field.options, value)}
+              onSelectionChange={(key) => {
+                const value = key ?? "";
                 updateField(field.key, value === emptyKey ? "" : value);
               }}
             >
-              {field.allowEmpty ? <SelectItem key={emptyKey}>不选择</SelectItem> : null}
-              {options.map((item) => (
-                <SelectItem key={item.value}>{item.label}</SelectItem>
-              ))}
-            </Select>
+              {(item) => (
+                <AutocompleteItem key={item.value}>{item.label}</AutocompleteItem>
+              )}
+            </Autocomplete>
           );
         }
 
         return (
           <Input
             key={field.key}
-            label={field.label}
+            label={renderLabel(field)}
             classNames={cleanInputClassNames}
+            isRequired={field.required}
             radius="sm"
             type={field.type ?? "text"}
             value={formValues[field.key] ?? ""}

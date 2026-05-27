@@ -20,7 +20,7 @@ export function createCrudController(repository) {
 
     async update(req, res, next) {
       try {
-        const row = await repository.update(Number(req.params.id), req.body);
+        const row = await repository.update(req.params.id, req.body);
         res.json({ data: row });
       } catch (error) {
         next(error);
@@ -29,7 +29,7 @@ export function createCrudController(repository) {
 
     async remove(req, res, next) {
       try {
-        await repository.deleteById(Number(req.params.id));
+        await repository.deleteById(req.params.id);
         res.status(204).end();
       } catch (error) {
         next(error);

@@ -27,7 +27,13 @@ export function normalizeFormValues(activeModule, row) {
       return { personType: "student", gender: "O", grade: "大一", title: "讲师" };
     }
 
-    return {};
+    return activeModule.fields.reduce((values, field) => {
+      if (field.type === "select" && !field.allowEmpty && optionSets[field.options]?.length === 1) {
+        values[field.key] = optionSets[field.options][0][0];
+      }
+
+      return values;
+    }, {});
   }
 
   return activeModule.fields.reduce((values, field) => {

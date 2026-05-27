@@ -7,6 +7,10 @@ import * as courseRepository from "../repositories/courseRepository.js";
 import * as eventRepository from "../repositories/eventRepository.js";
 import * as peopleRepository from "../repositories/peopleRepository.js";
 import * as sysUserRepository from "../repositories/sysUserRepository.js";
+import * as teachingRepository from "../repositories/teachingRepository.js";
+import * as enrollmentRepository from "../repositories/enrollmentRepository.js";
+import * as eventParticipationRepository from "../repositories/eventParticipationRepository.js";
+import * as queryRecordRepository from "../repositories/queryRecordRepository.js";
 
 export const campusController = createCrudController(campusRepository);
 export const buildingController = createCrudController(buildingRepository);
@@ -16,3 +20,7 @@ export const courseController = createCrudController(courseRepository);
 export const eventController = createCrudController(eventRepository);
 export const peopleController = createCrudController(peopleRepository);
 export const sysUserController = createCrudController(sysUserRepository);
+export const teachingController = createCrudController(teachingRepository);
+export const enrollmentController = createCrudController(enrollmentRepository);
+export const eventParticipationController = createCrudController(eventParticipationRepository);
+export const queryRecordController = createCrudController(queryRecordRepository);

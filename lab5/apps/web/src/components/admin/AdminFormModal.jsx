@@ -8,6 +8,7 @@ export function AdminFormModal({
   activeModule,
   editingRow,
   fieldOptionMap,
+  onSearchFieldOptions,
   isSubmitting,
   onSubmit
 }) {
@@ -40,6 +41,7 @@ export function AdminFormModal({
                 initialValues={editingRow}
                 isSubmitting={isSubmitting}
                 onClose={onClose}
+                onSearchFieldOptions={onSearchFieldOptions}
                 onSubmit={onSubmit}
               />
             </ModalBody>

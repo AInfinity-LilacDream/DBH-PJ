@@ -21,6 +21,7 @@ export function AdminDashboard({ user, onBackHome, onLogout }) {
     isSubmitting,
     message,
     fieldOptionMap,
+    searchFieldOptions,
     openCreateForm,
     openEditForm,
     handleSubmit,
@@ -66,6 +67,7 @@ export function AdminDashboard({ user, onBackHome, onLogout }) {
         activeModule={activeModule}
         editingRow={editingRow}
         fieldOptionMap={fieldOptionMap}
+        onSearchFieldOptions={searchFieldOptions}
         isSubmitting={isSubmitting}
         onSubmit={handleSubmit}
       />
