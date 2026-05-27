@@ -10,6 +10,7 @@
     "dev": "npm run dev --workspaces --if-present",
     "dev:server": "npm run dev -w @dbh-pj/server",
     "dev:web": "npm run dev -w @dbh-pj/web",
+    "seed:demo": "node scripts/seed-demo-data.mjs",
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present"
   },

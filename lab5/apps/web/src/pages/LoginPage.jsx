@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import {
   Button,
   Card,
@@ -11,7 +11,6 @@ import {
   Tabs
 } from "@heroui/react";
 import { login, register } from "../services/authApi.js";
-import { QueryDashboard } from "./QueryDashboard.jsx";
 
 const initialForm = {
   name: "",
@@ -35,28 +34,15 @@ const roleOptions = [
   { key: "admin", label: "管理员" }
 ];
 
-const roleMap = {
-  student: "学生",
-  teacher: "教师",
-  admin: "管理员"
-};
-
-export function LoginPage() {
+export function LoginPage({ onAuthenticated }) {
   const [mode, setMode] = useState("login");
   const [form, setForm] = useState(initialForm);
-  const [session, setSession] = useState(null);
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const searchParams = new URLSearchParams(window.location.search);
 
   const isRegister = mode === "register";
   const title = isRegister ? "创建账号" : "账号登录";
   const submitLabel = isSubmitting ? "处理中..." : isRegister ? "注册" : "登录";
-
-  const roleText = useMemo(
-    () => roleMap[session?.user?.roleType] ?? session?.user?.roleType,
-    [session]
-  );
 
   function updateField(name, value) {
     setForm((current) => ({ ...current, [name]: value }));
@@ -65,20 +51,12 @@ export function LoginPage() {
   function switchMode(nextMode) {
     setMode(nextMode);
     setMessage("");
-    setSession(null);
-  }
-
-  function handleLogout() {
-    localStorage.removeItem("dbh_auth_token");
-    setSession(null);
-    setMessage("");
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
     setIsSubmitting(true);
     setMessage("");
-    setSession(null);
 
     try {
       const payload = isRegister
@@ -87,22 +65,12 @@ export function LoginPage() {
       const result = isRegister ? await register(payload) : await login(payload);
 
       localStorage.setItem("dbh_auth_token", result.token);
-      setSession(result);
-      setMessage(isRegister ? "注册成功，已自动登录。" : "登录成功。");
+      onAuthenticated(result);
     } catch (error) {
       setMessage(error.message);
     } finally {
       setIsSubmitting(false);
     }
-  }
-
-  if (session || searchParams.get("mockDashboard") === "1") {
-    return (
-      <QueryDashboard
-        user={session?.user ?? { name: "演示用户", username: "demo", roleType: "student" }}
-        onLogout={handleLogout}
-      />
-    );
   }
 
   return (
@@ -230,23 +198,12 @@ export function LoginPage() {
 
               {message && (
                 <p
-                  className={
-                    session
-                      ? "rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700"
-                      : "rounded-lg bg-red-50 p-3 text-sm text-red-700"
-                  }
+                  className="rounded-lg bg-red-50 p-3 text-sm text-red-700"
                 >
                   {message}
                 </p>
               )}
 
-              {session && (
-                <div className="grid gap-1 rounded-lg border border-emerald-100 bg-emerald-50 p-4">
-                  <strong>{session.user.name}</strong>
-                  <span className="text-sm text-slate-600">@{session.user.username}</span>
-                  <span className="text-sm text-slate-600">{roleText}</span>
-                </div>
-              )}
             </form>
           </CardBody>
         </Card>

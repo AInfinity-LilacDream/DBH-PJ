@@ -39,45 +39,6 @@ const commonNavItems = [
   }
 ];
 
-const adminNavItems = [
-  {
-    key: "people-manage",
-    label: "人员管理",
-    icon: "👤",
-    description: "维护 People、Student、Teacher 与 SysUser 相关数据。"
-  },
-  {
-    key: "location-manage",
-    label: "地点管理",
-    icon: "⌂",
-    description: "维护 Campus、Building、Location 及开放时间。"
-  },
-  {
-    key: "course-manage",
-    label: "课程管理",
-    icon: "▣",
-    description: "维护 Course、Teaching、Enrollment 相关数据。"
-  },
-  {
-    key: "event-manage",
-    label: "活动管理",
-    icon: "◆",
-    description: "维护 Event 与 EventParticipation 相关数据。"
-  },
-  {
-    key: "department-manage",
-    label: "院系管理",
-    icon: "◎",
-    description: "维护 Department、办公室地点和负责人信息。"
-  },
-  {
-    key: "log-manage",
-    label: "日志管理",
-    icon: "≡",
-    description: "查看 QueryRecord 查询记录和后续系统审计日志。"
-  }
-];
-
 const roleTextMap = {
   student: "学生",
   teacher: "教师",
@@ -218,15 +179,14 @@ function ChatPanel() {
   );
 }
 
-function ContentPanel({ activeItem, isAdmin }) {
-  const isManagePage = activeItem.key.endsWith("-manage");
+function ContentPanel({ activeItem }) {
   const [keyword, setKeyword] = useState("");
   const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
-    if (activeItem.key === "new-chat" || isManagePage) {
+    if (activeItem.key === "new-chat") {
       return;
     }
 
@@ -259,7 +219,7 @@ function ContentPanel({ activeItem, isAdmin }) {
     return () => {
       isCurrent = false;
     };
-  }, [activeItem.key, isManagePage, keyword]);
+  }, [activeItem.key, keyword]);
 
   if (activeItem.key === "new-chat") {
     return <ChatPanel />;
@@ -273,7 +233,7 @@ function ContentPanel({ activeItem, isAdmin }) {
             <div className="flex items-center gap-2 text-sm text-slate-500">
               <span>首页</span>
               <span>/</span>
-              <span>{isManagePage ? "后台管理" : "信息查询"}</span>
+              <span>信息查询</span>
             </div>
             <h2 className="mt-1 truncate text-2xl font-black text-slate-950">{activeItem.label}</h2>
           </div>
@@ -281,87 +241,60 @@ function ContentPanel({ activeItem, isAdmin }) {
       </div>
 
       <div className="flex-1 overflow-auto px-5 py-6 sm:px-8">
-        {!isManagePage ? (
-          <div className="grid gap-5">
-            <section className="flex flex-wrap items-end justify-between gap-4">
-              <div className="max-w-2xl">
-                <h3 className="text-lg font-bold text-slate-950">全部{activeItem.label.replace("查询", "")}信息</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600">{activeItem.description}</p>
-              </div>
-              <Input
-                className="w-full sm:w-80"
-                aria-label={`${activeItem.label}关键词搜索`}
-                classNames={cleanInputClassNames}
-                isClearable
-                placeholder="关键词搜索"
-                radius="sm"
-                value={keyword}
-                variant="bordered"
-                onClear={() => setKeyword("")}
-                onValueChange={setKeyword}
-              />
-            </section>
-
-            {isLoading && (
-              <section className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
-                加载中...
-              </section>
-            )}
-
-            {errorMessage && !isLoading && (
-              <section className="rounded-lg border border-red-100 bg-red-50 p-8 text-center text-sm text-red-700">
-                {errorMessage}
-              </section>
-            )}
-
-            {!isLoading && !errorMessage && items.length > 0 ? (
-              <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                {items.map((item) => (
-                  <WaterfallCard key={`${item.title}-${item.meta}`} item={item} />
-                ))}
-              </section>
-            ) : null}
-
-            {!isLoading && !errorMessage && items.length === 0 ? (
-              <section className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
-                没有匹配的内容
-              </section>
-            ) : null}
-          </div>
-        ) : (
-          <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="max-w-2xl">
-                <h3 className="text-lg font-bold text-slate-950">{activeItem.label}</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600">{activeItem.description}</p>
-              </div>
-              {isAdmin && (
-                <Chip color="secondary" radius="sm" variant="flat">
-                  admin
-                </Chip>
-              )}
+        <div className="grid gap-5">
+          <section className="flex flex-wrap items-end justify-between gap-4">
+            <div className="max-w-2xl">
+              <h3 className="text-lg font-bold text-slate-950">全部{activeItem.label.replace("查询", "")}信息</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-600">{activeItem.description}</p>
             </div>
-            <Divider className="my-5" />
-            <div className="grid gap-3 sm:grid-cols-3">
-              {["新增", "编辑", "导入"].map((item) => (
-                <Button key={item} radius="sm" variant={item === "新增" ? "solid" : "bordered"} color="primary">
-                  {item}
-                </Button>
-              ))}
-            </div>
+            <Input
+              className="w-full sm:w-80"
+              aria-label={`${activeItem.label}关键词搜索`}
+              classNames={cleanInputClassNames}
+              isClearable
+              placeholder="关键词搜索"
+              radius="sm"
+              value={keyword}
+              variant="bordered"
+              onClear={() => setKeyword("")}
+              onValueChange={setKeyword}
+            />
           </section>
-        )}
+
+          {isLoading && (
+            <section className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
+              加载中...
+            </section>
+          )}
+
+          {errorMessage && !isLoading && (
+            <section className="rounded-lg border border-red-100 bg-red-50 p-8 text-center text-sm text-red-700">
+              {errorMessage}
+            </section>
+          )}
+
+          {!isLoading && !errorMessage && items.length > 0 ? (
+            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+              {items.map((item) => (
+                <WaterfallCard key={`${item.title}-${item.meta}`} item={item} />
+              ))}
+            </section>
+          ) : null}
+
+          {!isLoading && !errorMessage && items.length === 0 ? (
+            <section className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
+              没有匹配的内容
+            </section>
+          ) : null}
+        </div>
       </div>
     </section>
   );
 }
 
-export function QueryDashboard({ user, onLogout }) {
+export function QueryDashboard({ user, onEnterAdmin, onLogout }) {
   const isAdmin = user?.roleType === "admin";
-  const navItems = useMemo(
-    () => (isAdmin ? [...commonNavItems, ...adminNavItems] : commonNavItems),
-    [isAdmin]
-  );
+  const navItems = commonNavItems;
   const [activeKey, setActiveKey] = useState(navItems[0].key);
   const activeItem = navItems.find((item) => item.key === activeKey) ?? navItems[0];
   const displayName = user?.name || user?.username || "访客";
@@ -369,7 +302,7 @@ export function QueryDashboard({ user, onLogout }) {
 
   function handleSettingsAction(key) {
     if (key === "admin") {
-      setActiveKey("people-manage");
+      onEnterAdmin();
       return;
     }
 
@@ -405,22 +338,6 @@ export function QueryDashboard({ user, onLogout }) {
             ))}
           </div>
 
-          {isAdmin && (
-            <>
-              <Divider className="my-4" />
-              <p className="mb-2 px-3 text-xs font-bold uppercase text-slate-500">后台管理</p>
-              <div className="grid gap-1">
-                {adminNavItems.map((item) => (
-                  <NavButton
-                    key={item.key}
-                    item={item}
-                    isActive={activeItem.key === item.key}
-                    onPress={() => setActiveKey(item.key)}
-                  />
-                ))}
-              </div>
-            </>
-          )}
         </nav>
 
         <div className="border-t border-slate-200 px-4 py-4">
@@ -475,7 +392,7 @@ export function QueryDashboard({ user, onLogout }) {
           </div>
         </div>
 
-        <ContentPanel activeItem={activeItem} isAdmin={isAdmin} />
+        <ContentPanel activeItem={activeItem} />
       </div>
     </main>
   );
