@@ -22,7 +22,11 @@ export function errorHandler(error, _req, res, _next) {
   }
 
   if (error.code === "23505") {
-    return res.status(409).json({ message: "用户名、手机号或邮箱已存在" });
+    return res.status(409).json({
+      message: error.constraint?.includes("eventparticipation")
+        ? "您已报名该活动"
+        : "用户名、手机号或邮箱已存在"
+    });
   }
 
   if (error.code === "23514") {
