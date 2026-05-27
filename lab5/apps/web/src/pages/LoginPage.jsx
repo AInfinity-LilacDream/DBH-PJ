@@ -11,16 +11,7 @@ import {
   Tabs
 } from "@heroui/react";
 import { login, register } from "../services/authApi.js";
-
-const cleanInputClassNames = {
-  inputWrapper: [
-    "shadow-none",
-    "group-data-[focus=true]:shadow-none",
-    "group-data-[focus-visible=true]:ring-0",
-    "group-data-[focus-visible=true]:ring-offset-0"
-  ],
-  input: ["outline-none", "focus:outline-none"]
-};
+import { cleanInputClassNames } from "../styles/inputClassNames.js";
 
 const initialForm = {
   name: "",
@@ -212,13 +203,8 @@ export function LoginPage({ onAuthenticated }) {
               </Button>
 
               {message && (
-                <p
-                  className="rounded-lg bg-red-50 p-3 text-sm text-red-700"
-                >
-                  {message}
-                </p>
+                <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{message}</p>
               )}
-
             </form>
           </CardBody>
         </Card>

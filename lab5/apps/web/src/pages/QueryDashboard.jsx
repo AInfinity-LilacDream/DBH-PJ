@@ -12,6 +12,7 @@ import {
   Textarea
 } from "@heroui/react";
 import { listCatalogItems } from "../services/catalogApi.js";
+import { cleanInputClassNames } from "../styles/inputClassNames.js";
 
 const commonNavItems = [
   {
@@ -51,16 +52,6 @@ const chatSuggestions = [
   "数据库设计这门课由谁授课？",
   "这周有什么讲座或招聘宣讲？"
 ];
-
-const cleanInputClassNames = {
-  inputWrapper: [
-    "shadow-none",
-    "group-data-[focus=true]:shadow-none",
-    "group-data-[focus-visible=true]:ring-0",
-    "group-data-[focus-visible=true]:ring-offset-0"
-  ],
-  input: ["outline-none", "focus:outline-none"]
-};
 
 function NavButton({ item, isActive, onPress }) {
   return (

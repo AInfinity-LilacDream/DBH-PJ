@@ -21,6 +21,10 @@ export function listAdminRows(moduleName) {
   return request(`/api/admin/${moduleName}`);
 }
 
+export function listAdminFieldOptions(optionKey) {
+  return request(`/api/admin/options/${optionKey}`);
+}
+
 export function createAdminRow(moduleName, payload) {
   return request(`/api/admin/${moduleName}`, {
     method: "POST",

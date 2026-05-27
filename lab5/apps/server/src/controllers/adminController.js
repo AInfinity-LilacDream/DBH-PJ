@@ -1,5 +1,14 @@
 import * as adminRepository from "../repositories/adminRepository.js";
 
+export async function listFieldOptions(req, res, next) {
+  try {
+    const options = await adminRepository.listFieldOptions(req.params.optionKey);
+    res.json({ data: options });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function listRows(req, res, next) {
   try {
     const rows = await adminRepository.listModuleRows(req.params.moduleName);
