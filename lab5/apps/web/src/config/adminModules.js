@@ -5,7 +5,8 @@ import {
   departmentApi,
   courseApi,
   eventApi,
-  peopleApi
+  peopleApi,
+  usersApi
 } from "../services/admin/entities.js";
 
 export const optionSets = {
@@ -154,23 +155,55 @@ export const adminModules = [
     key: "people",
     api: peopleApi,
     label: "人员",
-    tableName: "People / SysUser",
-    description: "维护人员资料和账号信息。密码留空时，编辑不会修改原密码；新建账号默认密码为 123456。",
+    tableName: "People",
+    description: "维护真实人员档案（姓名、性别、联系方式）。删除人员会级联删除其登录账号与学生/教师扩展信息。",
     fields: [
       { key: "name", label: "姓名", required: true },
       { key: "gender", label: "性别", type: "select", options: "gender", required: true },
       { key: "phone", label: "手机号" },
-      { key: "email", label: "邮箱" },
-      { key: "username", label: "用户名" },
-      { key: "password", label: "密码", type: "password" },
-      { key: "roleType", label: "账号角色", type: "select", options: "roleType" },
-      { key: "verificationStatus", label: "审核状态", type: "select", options: "verificationStatus" }
+      { key: "email", label: "邮箱" }
     ],
     columns: [
       { key: "name", label: "姓名" },
+      { key: "gender", label: "性别", format: "gender" },
+      { key: "phone", label: "手机号" },
+      { key: "email", label: "邮箱" }
+    ]
+  },
+  {
+    key: "users",
+    api: usersApi,
+    label: "用户",
+    tableName: "SysUser",
+    description:
+      "维护系统登录账号，须关联已有人员。一人仅可有一个账号。密码留空时编辑不修改原密码；新建默认密码为 123456。",
+    fields: [
+      {
+        key: "peopleId",
+        label: "关联人员",
+        type: "fk-select",
+        options: "people",
+        required: true,
+        immutableOnEdit: true
+      },
+      { key: "username", label: "用户名", required: true },
+      { key: "password", label: "密码", type: "password" },
+      { key: "roleType", label: "账号角色", type: "select", options: "roleType", required: true },
+      {
+        key: "verificationStatus",
+        label: "审核状态",
+        type: "select",
+        options: "verificationStatus",
+        required: true
+      },
+      { key: "depId", label: "所属院系", type: "fk-select", options: "departments", allowEmpty: true }
+    ],
+    columns: [
+      { key: "personName", label: "姓名" },
       { key: "username", label: "用户名" },
       { key: "roleType", label: "角色" },
-      { key: "verificationStatus", label: "审核状态" }
+      { key: "verificationStatus", label: "审核状态", format: "verificationStatus" },
+      { key: "departmentName", label: "所属院系" }
     ]
   }
 ];

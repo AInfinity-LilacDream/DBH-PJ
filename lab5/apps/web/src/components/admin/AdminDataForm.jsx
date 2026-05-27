@@ -30,6 +30,26 @@ export function AdminDataForm({ activeModule, fieldOptionMap, initialValues, isS
   return (
     <form className="grid content-start gap-4" onSubmit={handleSubmit}>
       {activeModule.fields.map((field) => {
+        if (field.immutableOnEdit && initialValues) {
+          const options = fieldOptionMap[field.options] ?? [];
+          const label =
+            options.find((item) => String(item.value) === String(formValues[field.key]))?.label ??
+            formValues[field.key] ??
+            "";
+
+          return (
+            <Input
+              key={field.key}
+              isReadOnly
+              label={field.label}
+              classNames={cleanInputClassNames}
+              radius="sm"
+              value={label}
+              variant="bordered"
+            />
+          );
+        }
+
         if (field.type === "textarea") {
           return (
             <Textarea

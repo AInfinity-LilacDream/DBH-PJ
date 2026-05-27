@@ -12,6 +12,7 @@ import {
   TableRow
 } from "@heroui/react";
 import { roleTextMap } from "../../constants/roleTextMap.js";
+import { verificationTextMap } from "../../constants/verificationTextMap.js";
 import { displayValue } from "../../utils/adminFormUtils.js";
 import { cleanInputClassNames } from "../../styles/inputClassNames.js";
 
@@ -58,6 +59,10 @@ export function AdminDataTable({ activeModule, rows, isLoading, onCreate, onEdit
                     {column.key === "roleType" ? (
                       <Chip color="primary" radius="sm" size="sm" variant="flat">
                         {roleTextMap[item[column.key]] ?? displayValue(item[column.key])}
+                      </Chip>
+                    ) : column.key === "verificationStatus" ? (
+                      <Chip color="warning" radius="sm" size="sm" variant="flat">
+                        {verificationTextMap[item[column.key]] ?? displayValue(item[column.key], column)}
                       </Chip>
                     ) : (
                       displayValue(item[column.key], column)
