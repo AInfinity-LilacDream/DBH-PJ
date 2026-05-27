@@ -1,16 +1,30 @@
 import { Router } from "express";
 import {
-  createRow,
-  deleteRow,
-  listFieldOptions,
-  listRows,
-  updateRow
-} from "../controllers/adminController.js";
+  campusController,
+  buildingController,
+  locationController,
+  departmentController,
+  courseController,
+  eventController,
+  peopleController
+} from "../controllers/adminControllers.js";
+import * as fieldOptionsController from "../controllers/fieldOptionsController.js";
+import { registerCrudRoutes } from "../utils/registerCrudRoutes.js";
 
 export const adminRoutes = Router();
 
-adminRoutes.get("/admin/options/:optionKey", listFieldOptions);
-adminRoutes.get("/admin/:moduleName", listRows);
-adminRoutes.post("/admin/:moduleName", createRow);
-adminRoutes.put("/admin/:moduleName/:id", updateRow);
-adminRoutes.delete("/admin/:moduleName/:id", deleteRow);
+adminRoutes.get("/admin/options/:optionKey", fieldOptionsController.list);
+
+const adminResources = [
+  ["campuses", campusController],
+  ["buildings", buildingController],
+  ["locations", locationController],
+  ["departments", departmentController],
+  ["courses", courseController],
+  ["events", eventController],
+  ["people", peopleController]
+];
+
+for (const [resource, controller] of adminResources) {
+  registerCrudRoutes(adminRoutes, `/admin/${resource}`, controller);
+}
