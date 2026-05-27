@@ -1,27 +1,15 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001";
-
-async function request(path, payload) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(payload)
-  });
-
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    throw new Error(data.message || "请求失败");
-  }
-
-  return data;
-}
+import { request } from "./http.js";
 
 export function login(payload) {
-  return request("/api/auth/login", payload);
+  return request("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
 }
 
 export function register(payload) {
-  return request("/api/auth/register", payload);
+  return request("/api/auth/register", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
 }

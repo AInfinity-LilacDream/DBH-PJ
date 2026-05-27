@@ -1,8 +1,12 @@
 import { Router } from "express";
-import { listCourses, listEvents, listLocations } from "../controllers/catalogController.js";
+import {
+  locationQueryController,
+  courseQueryController,
+  eventQueryController
+} from "../controllers/catalogQueryControllers.js";
 
 export const catalogRoutes = Router();
 
-catalogRoutes.get("/locations", listLocations);
-catalogRoutes.get("/courses", listCourses);
-catalogRoutes.get("/events", listEvents);
+catalogRoutes.get("/locations", locationQueryController.search);
+catalogRoutes.get("/courses", courseQueryController.search);
+catalogRoutes.get("/events", eventQueryController.search);
