@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { Icon } from "@iconify/react";
 import {
   Button,
   Chip,
@@ -457,8 +458,8 @@ export function AdminDashboard({ user, onBackHome, onLogout }) {
             </div>
             <Dropdown placement="top-end">
               <DropdownTrigger>
-                <Button aria-label="管理端设置" className="h-11 w-11 text-xl" isIconOnly radius="sm" variant="light">
-                  ⚙
+                <Button aria-label="管理端设置" className="h-11 w-11" isIconOnly radius="sm" variant="light">
+                  <Icon icon="lucide:settings" width={20} height={20} />
                 </Button>
               </DropdownTrigger>
               <DropdownMenu aria-label="管理端账户菜单">

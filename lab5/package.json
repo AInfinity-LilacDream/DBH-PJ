@@ -16,5 +16,8 @@
   },
   "optionalDependencies": {
     "@rollup/rollup-darwin-arm64": "^4.60.4"
+  },
+  "dependencies": {
+    "@iconify/react": "^6.0.2"
   }
 }

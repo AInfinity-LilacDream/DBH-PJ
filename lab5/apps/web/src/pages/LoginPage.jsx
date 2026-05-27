@@ -12,6 +12,16 @@ import {
 } from "@heroui/react";
 import { login, register } from "../services/authApi.js";
 
+const cleanInputClassNames = {
+  inputWrapper: [
+    "shadow-none",
+    "group-data-[focus=true]:shadow-none",
+    "group-data-[focus-visible=true]:ring-0",
+    "group-data-[focus-visible=true]:ring-offset-0"
+  ],
+  input: ["outline-none", "focus:outline-none"]
+};
+
 const initialForm = {
   name: "",
   username: "",
@@ -115,8 +125,9 @@ export function LoginPage({ onAuthenticated }) {
                   <Input
                     label="姓名"
                     value={form.name}
+                    classNames={cleanInputClassNames}
                     onValueChange={(value) => updateField("name", value)}
-                    placeholder="张三"
+                    placeholder="姓名"
                     autoComplete="name"
                     variant="bordered"
                     isRequired
@@ -151,8 +162,9 @@ export function LoginPage({ onAuthenticated }) {
               <Input
                 label="用户名"
                 value={form.username}
+                classNames={cleanInputClassNames}
                 onValueChange={(value) => updateField("username", value)}
-                placeholder="zhangsan"
+                placeholder="用户名"
                 autoComplete="username"
                 variant="bordered"
                 isRequired
@@ -162,8 +174,9 @@ export function LoginPage({ onAuthenticated }) {
                 label="密码"
                 type="password"
                 value={form.password}
+                classNames={cleanInputClassNames}
                 onValueChange={(value) => updateField("password", value)}
-                placeholder="至少 6 位"
+                placeholder="密码"
                 autoComplete={isRegister ? "new-password" : "current-password"}
                 variant="bordered"
                 isRequired
@@ -174,6 +187,7 @@ export function LoginPage({ onAuthenticated }) {
                   <Input
                     label="手机号"
                     value={form.phone}
+                    classNames={cleanInputClassNames}
                     onValueChange={(value) => updateField("phone", value)}
                     placeholder="可选"
                     autoComplete="tel"
@@ -184,6 +198,7 @@ export function LoginPage({ onAuthenticated }) {
                     label="邮箱"
                     type="email"
                     value={form.email}
+                    classNames={cleanInputClassNames}
                     onValueChange={(value) => updateField("email", value)}
                     placeholder="可选"
                     autoComplete="email"
