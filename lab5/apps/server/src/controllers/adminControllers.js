@@ -6,6 +6,7 @@ import * as departmentRepository from "../repositories/departmentRepository.js";
 import * as courseRepository from "../repositories/courseRepository.js";
 import * as eventRepository from "../repositories/eventRepository.js";
 import * as peopleRepository from "../repositories/peopleRepository.js";
+import * as sysUserRepository from "../repositories/sysUserRepository.js";
 
 export const campusController = createCrudController(campusRepository);
 export const buildingController = createCrudController(buildingRepository);
@@ -14,3 +15,4 @@ export const departmentController = createCrudController(departmentRepository);
 export const courseController = createCrudController(courseRepository);
 export const eventController = createCrudController(eventRepository);
 export const peopleController = createCrudController(peopleRepository);
+export const sysUserController = createCrudController(sysUserRepository);

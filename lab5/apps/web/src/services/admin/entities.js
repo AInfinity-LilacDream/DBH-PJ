@@ -7,3 +7,4 @@ export const departmentApi = createEntityApi("/api/admin/departments");
 export const courseApi = createEntityApi("/api/admin/courses");
 export const eventApi = createEntityApi("/api/admin/events");
 export const peopleApi = createEntityApi("/api/admin/people");
+export const usersApi = createEntityApi("/api/admin/users");

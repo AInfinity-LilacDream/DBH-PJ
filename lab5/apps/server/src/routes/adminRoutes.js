@@ -6,7 +6,8 @@ import {
   departmentController,
   courseController,
   eventController,
-  peopleController
+  peopleController,
+  sysUserController
 } from "../controllers/adminControllers.js";
 import * as fieldOptionsController from "../controllers/fieldOptionsController.js";
 import { registerCrudRoutes } from "../utils/registerCrudRoutes.js";
@@ -22,7 +23,8 @@ const adminResources = [
   ["departments", departmentController],
   ["courses", courseController],
   ["events", eventController],
-  ["people", peopleController]
+  ["people", peopleController],
+  ["users", sysUserController]
 ];
 
 for (const [resource, controller] of adminResources) {

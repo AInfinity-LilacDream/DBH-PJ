@@ -8,6 +8,11 @@ function toDatetimeLocalValue(value) {
   return text.replace(" ", "T").slice(0, 16);
 }
 
+import { optionSets } from "../config/adminModules.js";
+import { verificationTextMap } from "../constants/verificationTextMap.js";
+
+const genderTextMap = Object.fromEntries(optionSets.gender);
+
 function formatDateTimeDisplay(value) {
   if (value === null || value === undefined || value === "") {
     return "未填写";
@@ -28,6 +33,10 @@ export function normalizeFormValues(activeModule, row) {
       value = toDatetimeLocalValue(value);
     }
 
+    if (field.type === "fk-select" && value !== "" && value != null) {
+      value = String(value);
+    }
+
     values[field.key] = value;
     return values;
   }, {});
@@ -36,6 +45,14 @@ export function normalizeFormValues(activeModule, row) {
 export function displayValue(value, column) {
   if (column?.format === "datetime") {
     return formatDateTimeDisplay(value);
+  }
+
+  if (column?.format === "gender") {
+    return genderTextMap[value] ?? "未填写";
+  }
+
+  if (column?.format === "verificationStatus") {
+    return verificationTextMap[value] ?? "未填写";
   }
 
   if (value === null || value === undefined || value === "") {
@@ -47,6 +64,14 @@ export function displayValue(value, column) {
 
 export function getRowDisplayName(row) {
   return displayValue(
-    row.name ?? row.campusName ?? row.buildingName ?? row.locationName ?? row.depName ?? row.courseName ?? row.eventName
+    row.name ??
+      row.personName ??
+      row.username ??
+      row.campusName ??
+      row.buildingName ??
+      row.locationName ??
+      row.depName ??
+      row.courseName ??
+      row.eventName
   );
 }
