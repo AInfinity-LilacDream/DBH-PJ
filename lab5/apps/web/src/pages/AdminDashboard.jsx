@@ -27,9 +27,11 @@ import {
 import {
   createAdminRow,
   deleteAdminRow,
+  listAdminFieldOptions,
   listAdminRows,
   updateAdminRow
 } from "../services/adminApi.js";
+import { cleanInputClassNames } from "../styles/inputClassNames.js";
 
 const roleTextMap = {
   student: "学生",
@@ -54,6 +56,7 @@ const optionSets = {
     ["rejected", "已拒绝"]
   ],
   facilityType: ["教室", "食堂", "咖啡店", "自习室", "图书馆", "实验室", "运动场地", "办公室", "医务室", "其他"].map((item) => [item, item]),
+  buildingType: ["教学楼", "宿舍楼", "食堂楼", "图书馆", "行政楼", "实验楼", "体育设施", "医疗卫生", "其他"].map((item) => [item, item]),
   eventType: ["讲座", "论坛", "文艺演出", "体育赛事", "学术交流", "招聘宣讲", "志愿服务", "其他"].map((item) => [item, item])
 };
 
@@ -73,13 +76,31 @@ const modules = [
     ]
   },
   {
+    key: "building",
+    label: "楼宇",
+    tableName: "Building",
+    description: "维护楼宇名称、所属校区、类型与描述。",
+    fields: [
+      { key: "buildingName", label: "楼宇名称", required: true },
+      { key: "campusId", label: "所属校区", type: "fk-select", options: "campuses", required: true },
+      { key: "buildingType", label: "楼宇类型", type: "select", options: "buildingType", required: true },
+      { key: "description", label: "描述", type: "textarea" }
+    ],
+    columns: [
+      { key: "buildingName", label: "楼宇名称" },
+      { key: "campusName", label: "所属校区" },
+      { key: "buildingType", label: "楼宇类型" },
+      { key: "description", label: "描述" }
+    ]
+  },
+  {
     key: "location",
     label: "地点",
     tableName: "Location",
-    description: "维护地点、所属楼宇、设施类型和开放时间。所属楼宇请填写 Building 表中的 ID。",
+    description: "维护地点、所属楼宇、设施类型和开放时间。",
     fields: [
       { key: "locationName", label: "地点名称", required: true },
-      { key: "buildingId", label: "所属楼宇ID", type: "number", required: true },
+      { key: "buildingId", label: "所属楼宇", type: "fk-select", options: "buildings", required: true },
       { key: "facilityType", label: "设施类型", type: "select", options: "facilityType", required: true },
       { key: "openTime", label: "开放时间" },
       { key: "description", label: "描述", type: "textarea" }
@@ -92,13 +113,32 @@ const modules = [
     ]
   },
   {
+    key: "department",
+    label: "院系",
+    tableName: "Department",
+    description: "维护院系名称、联系方式、办公室地点与负责人。",
+    fields: [
+      { key: "depName", label: "院系名称", required: true },
+      { key: "contactInfo", label: "联系方式" },
+      { key: "officeLocationId", label: "办公室地点", type: "fk-select", options: "locations", allowEmpty: true },
+      { key: "managerId", label: "负责人", type: "fk-select", options: "people", allowEmpty: true },
+      { key: "description", label: "描述", type: "textarea" }
+    ],
+    columns: [
+      { key: "depName", label: "院系名称" },
+      { key: "contactInfo", label: "联系方式" },
+      { key: "officeLocationName", label: "办公室" },
+      { key: "managerName", label: "负责人" }
+    ]
+  },
+  {
     key: "course",
     label: "课程",
     tableName: "Course",
-    description: "维护课程、开课院系和课程描述。开课院系请填写 Department 表中的 ID。",
+    description: "维护课程、开课院系和课程描述。",
     fields: [
       { key: "courseName", label: "课程名称", required: true },
-      { key: "depId", label: "开课院系ID", type: "number", required: true },
+      { key: "depId", label: "开课院系", type: "fk-select", options: "departments", required: true },
       { key: "description", label: "课程描述", type: "textarea" }
     ],
     columns: [
@@ -111,20 +151,20 @@ const modules = [
     key: "event",
     label: "活动",
     tableName: "Event",
-    description: "维护讲座、论坛、体育赛事等校园活动。地点和主办院系可以填写对应表 ID，也可以留空。",
+    description: "维护讲座、论坛、体育赛事等校园活动。",
     fields: [
       { key: "eventName", label: "活动名称", required: true },
       { key: "eventType", label: "活动类型", type: "select", options: "eventType", required: true },
       { key: "startTime", label: "开始时间", type: "datetime-local", required: true },
       { key: "endTime", label: "结束时间", type: "datetime-local" },
-      { key: "locationId", label: "地点ID", type: "number" },
-      { key: "hostDepId", label: "主办院系ID", type: "number" },
+      { key: "locationId", label: "活动地点", type: "fk-select", options: "locations", allowEmpty: true },
+      { key: "hostDepId", label: "主办院系", type: "fk-select", options: "departments", allowEmpty: true },
       { key: "description", label: "描述", type: "textarea" }
     ],
     columns: [
       { key: "eventName", label: "活动名称" },
       { key: "eventType", label: "活动类型" },
-      { key: "startTime", label: "开始时间" },
+      { key: "startTime", label: "开始时间", format: "datetime" },
       { key: "locationName", label: "地点" }
     ]
   },
@@ -158,12 +198,40 @@ function normalizeFormValues(activeModule, row) {
   }
 
   return activeModule.fields.reduce((values, field) => {
-    values[field.key] = row[field.key] ?? "";
+    let value = row[field.key] ?? "";
+
+    if (field.type === "datetime-local" && value) {
+      value = toDatetimeLocalValue(value);
+    }
+
+    values[field.key] = value;
     return values;
   }, {});
 }
 
-function displayValue(value) {
+function toDatetimeLocalValue(value) {
+  const text = String(value).trim();
+
+  if (!text) {
+    return "";
+  }
+
+  return text.replace(" ", "T").slice(0, 16);
+}
+
+function formatDateTimeDisplay(value) {
+  if (value === null || value === undefined || value === "") {
+    return "未填写";
+  }
+
+  return String(value).replace("T", " ");
+}
+
+function displayValue(value, column) {
+  if (column?.format === "datetime") {
+    return formatDateTimeDisplay(value);
+  }
+
   if (value === null || value === undefined || value === "") {
     return "未填写";
   }
@@ -189,7 +257,7 @@ function NavButton({ item, isActive, onPress }) {
   );
 }
 
-function DataForm({ activeModule, initialValues, isSubmitting, onSubmit, onClose }) {
+function DataForm({ activeModule, fieldOptionMap, initialValues, isSubmitting, onSubmit, onClose }) {
   const [formValues, setFormValues] = useState(() => normalizeFormValues(activeModule, initialValues));
 
   useEffect(() => {
@@ -213,6 +281,7 @@ function DataForm({ activeModule, initialValues, isSubmitting, onSubmit, onClose
             <Textarea
               key={field.key}
               label={field.label}
+              classNames={cleanInputClassNames}
               minRows={3}
               radius="sm"
               value={formValues[field.key] ?? ""}
@@ -239,10 +308,42 @@ function DataForm({ activeModule, initialValues, isSubmitting, onSubmit, onClose
           );
         }
 
+        if (field.type === "fk-select") {
+          const options = fieldOptionMap[field.options] ?? [];
+          const emptyKey = "__none__";
+          const currentValue = formValues[field.key];
+          const selectedKeys = currentValue
+            ? [String(currentValue)]
+            : field.allowEmpty
+              ? [emptyKey]
+              : [];
+
+          return (
+            <Select
+              key={field.key}
+              label={field.label}
+              isLoading={options.length === 0}
+              radius="sm"
+              selectedKeys={selectedKeys}
+              variant="bordered"
+              onSelectionChange={(keys) => {
+                const value = Array.from(keys)[0] ?? "";
+                updateField(field.key, value === emptyKey ? "" : value);
+              }}
+            >
+              {field.allowEmpty ? <SelectItem key={emptyKey}>不选择</SelectItem> : null}
+              {options.map((item) => (
+                <SelectItem key={item.value}>{item.label}</SelectItem>
+              ))}
+            </Select>
+          );
+        }
+
         return (
           <Input
             key={field.key}
             label={field.label}
+            classNames={cleanInputClassNames}
             radius="sm"
             type={field.type ?? "text"}
             value={formValues[field.key] ?? ""}
@@ -277,6 +378,7 @@ function DataTablePane({ activeModule, rows, isLoading, onCreate, onEdit, onDele
           <Input
             className="w-full sm:w-72"
             aria-label="管理端表格搜索"
+            classNames={cleanInputClassNames}
             isClearable
             placeholder="搜索当前表"
             radius="sm"
@@ -308,7 +410,7 @@ function DataTablePane({ activeModule, rows, isLoading, onCreate, onEdit, onDele
                         {roleTextMap[item[column.key]] ?? displayValue(item[column.key])}
                       </Chip>
                     ) : (
-                      displayValue(item[column.key])
+                      displayValue(item[column.key], column)
                     )}
                   </TableCell>
                 ))}
@@ -339,9 +441,20 @@ export function AdminDashboard({ user, onBackHome, onLogout }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const [fieldOptionMap, setFieldOptionMap] = useState({});
   const activeModule = useMemo(
     () => modules.find((item) => item.key === activeKey) ?? modules[0],
     [activeKey]
+  );
+  const fkOptionKeys = useMemo(
+    () => [
+      ...new Set(
+        activeModule.fields
+          .filter((field) => field.type === "fk-select" && field.options)
+          .map((field) => field.options)
+      )
+    ],
+    [activeModule]
   );
   const displayName = user?.name || user?.username || "管理员";
   const roleText = roleTextMap[user?.roleType] ?? "管理员";
@@ -364,6 +477,40 @@ export function AdminDashboard({ user, onBackHome, onLogout }) {
   useEffect(() => {
     loadRows(activeKey);
   }, [activeKey]);
+
+  useEffect(() => {
+    if (!isFormOpen || fkOptionKeys.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadFieldOptions() {
+      try {
+        const entries = await Promise.all(
+          fkOptionKeys.map(async (optionKey) => {
+            const result = await listAdminFieldOptions(optionKey);
+            return [optionKey, result.data ?? []];
+          })
+        );
+
+        if (!cancelled) {
+          setFieldOptionMap(Object.fromEntries(entries));
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setFieldOptionMap({});
+          setMessage(error.message);
+        }
+      }
+    }
+
+    loadFieldOptions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isFormOpen, fkOptionKeys]);
 
   function openCreateForm() {
     setEditingRow(null);
@@ -397,7 +544,9 @@ export function AdminDashboard({ user, onBackHome, onLogout }) {
   }
 
   async function handleDelete(row) {
-    const confirmed = window.confirm(`确定删除「${displayValue(row.name ?? row.campusName ?? row.locationName ?? row.courseName ?? row.eventName)}」吗？`);
+    const confirmed = window.confirm(
+      `确定删除「${displayValue(row.name ?? row.campusName ?? row.buildingName ?? row.locationName ?? row.depName ?? row.courseName ?? row.eventName)}」吗？`
+    );
 
     if (!confirmed) {
       return;
@@ -555,6 +704,7 @@ export function AdminDashboard({ user, onBackHome, onLogout }) {
               <ModalBody>
                 <DataForm
                   activeModule={activeModule}
+                  fieldOptionMap={fieldOptionMap}
                   initialValues={editingRow}
                   isSubmitting={isSubmitting}
                   onClose={onClose}

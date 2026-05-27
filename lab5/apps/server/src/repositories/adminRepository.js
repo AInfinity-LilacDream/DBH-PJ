@@ -3,6 +3,76 @@ import { hashPassword } from "../utils/password.js";
 import { HttpError } from "../utils/httpError.js";
 
 const moduleConfig = {
+  building: {
+    idColumn: "building_id",
+    listSql: `
+      SELECT
+        b.building_id AS id,
+        b.building_name AS "buildingName",
+        b.campus_id AS "campusId",
+        c.campus_name AS "campusName",
+        b.building_type AS "buildingType",
+        COALESCE(b.description, '') AS description
+      FROM building b
+      JOIN campus c ON c.campus_id = b.campus_id
+      ORDER BY b.building_id DESC
+    `,
+    createSql: `
+      INSERT INTO Building (building_name, campus_id, building_type, description)
+      VALUES ($1, $2, $3, $4)
+      RETURNING building_id AS id
+    `,
+    updateSql: `
+      UPDATE Building
+      SET building_name = $1, campus_id = $2, building_type = $3, description = $4
+      WHERE building_id = $5
+      RETURNING building_id AS id
+    `,
+    deleteSql: "DELETE FROM Building WHERE building_id = $1 RETURNING building_id AS id",
+    values: (payload) => [
+      requireText(payload.buildingName, "楼宇名称"),
+      requireNumber(payload.campusId, "所属校区"),
+      requireText(payload.buildingType, "楼宇类型"),
+      optionalText(payload.description)
+    ]
+  },
+  department: {
+    idColumn: "dep_id",
+    listSql: `
+      SELECT
+        d.dep_id AS id,
+        d.dep_name AS "depName",
+        COALESCE(d.contact_info, '') AS "contactInfo",
+        d.office_location_id AS "officeLocationId",
+        COALESCE(l.location_name, '') AS "officeLocationName",
+        d.manager_id AS "managerId",
+        COALESCE(p.name, '') AS "managerName",
+        COALESCE(d.description, '') AS description
+      FROM department d
+      LEFT JOIN location l ON l.location_id = d.office_location_id
+      LEFT JOIN people p ON p.people_id = d.manager_id
+      ORDER BY d.dep_id DESC
+    `,
+    createSql: `
+      INSERT INTO Department (dep_name, contact_info, office_location_id, manager_id, description)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING dep_id AS id
+    `,
+    updateSql: `
+      UPDATE Department
+      SET dep_name = $1, contact_info = $2, office_location_id = $3, manager_id = $4, description = $5
+      WHERE dep_id = $6
+      RETURNING dep_id AS id
+    `,
+    deleteSql: "DELETE FROM Department WHERE dep_id = $1 RETURNING dep_id AS id",
+    values: (payload) => [
+      requireText(payload.depName, "院系名称"),
+      optionalText(payload.contactInfo),
+      optionalNumber(payload.officeLocationId),
+      optionalNumber(payload.managerId),
+      optionalText(payload.description)
+    ]
+  },
   campus: {
     idColumn: "campus_id",
     listSql: `
@@ -100,8 +170,8 @@ const moduleConfig = {
         e.event_id AS id,
         e.event_name AS "eventName",
         e.event_type AS "eventType",
-        TO_CHAR(e.start_time, 'YYYY-MM-DD"T"HH24:MI') AS "startTime",
-        TO_CHAR(e.end_time, 'YYYY-MM-DD"T"HH24:MI') AS "endTime",
+        TO_CHAR(e.start_time, 'YYYY-MM-DD HH24:MI') AS "startTime",
+        TO_CHAR(e.end_time, 'YYYY-MM-DD HH24:MI') AS "endTime",
         e.location_id AS "locationId",
         COALESCE(l.location_name, '') AS "locationName",
         e.host_dep_id AS "hostDepId",
@@ -136,6 +206,38 @@ const moduleConfig = {
   }
 };
 
+const fieldOptionQueries = {
+  campuses: `
+    SELECT campus_id::text AS value, campus_name AS label
+    FROM campus
+    ORDER BY campus_name
+  `,
+  buildings: `
+    SELECT b.building_id::text AS value,
+           b.building_name || '（' || c.campus_name || '）' AS label
+    FROM building b
+    JOIN campus c ON c.campus_id = b.campus_id
+    ORDER BY c.campus_name, b.building_name
+  `,
+  departments: `
+    SELECT dep_id::text AS value, dep_name AS label
+    FROM department
+    ORDER BY dep_name
+  `,
+  locations: `
+    SELECT l.location_id::text AS value,
+           l.location_name || ' · ' || b.building_name AS label
+    FROM location l
+    JOIN building b ON b.building_id = l.building_id
+    ORDER BY l.location_name
+  `,
+  people: `
+    SELECT people_id::text AS value, name AS label
+    FROM people
+    ORDER BY name
+  `
+};
+
 function getConfig(moduleName) {
   const config = moduleConfig[moduleName];
 
@@ -144,6 +246,16 @@ function getConfig(moduleName) {
   }
 
   return config;
+}
+
+function getFieldOptionQuery(optionKey) {
+  const sql = fieldOptionQueries[optionKey];
+
+  if (!sql) {
+    throw new HttpError(404, "字段选项不存在");
+  }
+
+  return sql;
 }
 
 function optionalText(value) {
@@ -191,6 +303,11 @@ async function ensureAffected(result) {
   }
 
   return result.rows[0];
+}
+
+export async function listFieldOptions(optionKey) {
+  const result = await query(getFieldOptionQuery(optionKey));
+  return result.rows;
 }
 
 export async function listModuleRows(moduleName) {
