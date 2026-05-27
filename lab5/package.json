@@ -12,5 +12,8 @@
     "dev:web": "npm run dev -w @dbh-pj/web",
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-darwin-arm64": "^4.60.4"
   }
 }
