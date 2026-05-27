@@ -8,6 +8,6 @@ export function searchCourses(keyWord) {
   return get("/api/courses", { keyWord });
 }
 
-export function searchEvents(keyWord) {
-  return get("/api/events", { keyWord });
+export function searchEvents(keyWord, peopleId) {
+  return get("/api/events", { keyWord, peopleId });
 }

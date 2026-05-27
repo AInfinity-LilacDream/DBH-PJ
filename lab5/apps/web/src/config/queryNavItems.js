@@ -27,6 +27,12 @@ export const queryNavItems = [
     icon: "lucide:calendar-days",
     description: "查询讲座、论坛、招聘宣讲、文体活动等校园事件。",
     search: searchEvents
+  },
+  {
+    key: "my-events",
+    label: "我的活动",
+    icon: "lucide:calendar-check",
+    description: "按开始时间从早到晚展示您已报名、尚未开始的校园活动。"
   }
 ];
 

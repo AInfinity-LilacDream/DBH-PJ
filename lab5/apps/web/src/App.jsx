@@ -101,7 +101,13 @@ export function App() {
       return;
     }
 
-    if ((path === "/homepage" || path === "/admin/homepage" || path === "/user/account") && !session) {
+    if (
+      (path === "/homepage" ||
+        path === "/admin/homepage" ||
+        path === "/user/account" ||
+        path === "/user/my-events") &&
+      !session
+    ) {
       navigate("/user/login", { replace: true });
     }
   }, [path, session]);
@@ -110,7 +116,7 @@ export function App() {
     return <LoginPage onAuthenticated={handleAuthenticated} />;
   }
 
-  if (path === "/homepage") {
+  if (path === "/homepage" || path === "/user/my-events") {
     if (!session) {
       return <LoginPage onAuthenticated={handleAuthenticated} />;
     }
@@ -118,6 +124,7 @@ export function App() {
     return (
       <QueryDashboard
         user={session.user}
+        initialActiveKey={path === "/user/my-events" ? "my-events" : undefined}
         onEnterAccount={enterAccount}
         onEnterAdmin={enterAdmin}
         onLogout={handleLogout}

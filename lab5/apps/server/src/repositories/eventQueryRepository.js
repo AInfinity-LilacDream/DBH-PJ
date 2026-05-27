@@ -1,20 +1,40 @@
 import { query } from "../db/pool.js";
 import { createKeywordPattern } from "../utils/keyword.js";
 
-export async function search(keyWord) {
+export async function search(keyWord, peopleId = null) {
   const keywordPattern = createKeywordPattern(keyWord);
-  const params = keywordPattern ? [keywordPattern] : [];
-  const whereClause = keywordPattern
-    ? `
-      WHERE
-        e.event_name ILIKE $1
-        OR e.event_type ILIKE $1
-        OR COALESCE(e.description, '') ILIKE $1
-        OR COALESCE(d.dep_name, '') ILIKE $1
-        OR COALESCE(l.location_name, '') ILIKE $1
-        OR COALESCE(b.building_name, '') ILIKE $1
-        OR COALESCE(c.campus_name, '') ILIKE $1
-    `
+  const params = [];
+  const filters = [];
+
+  if (keywordPattern) {
+    params.push(keywordPattern);
+    filters.push(`
+      (
+        e.event_name ILIKE $${params.length}
+        OR e.event_type ILIKE $${params.length}
+        OR COALESCE(e.description, '') ILIKE $${params.length}
+        OR COALESCE(d.dep_name, '') ILIKE $${params.length}
+        OR COALESCE(l.location_name, '') ILIKE $${params.length}
+        OR COALESCE(b.building_name, '') ILIKE $${params.length}
+        OR COALESCE(c.campus_name, '') ILIKE $${params.length}
+      )
+    `);
+  }
+
+  if (peopleId) {
+    params.push(peopleId);
+  }
+
+  const participationJoin = peopleId
+    ? `LEFT JOIN eventparticipation ep ON ep.event_id = e.event_id AND ep.participant_id = $${params.length}`
+    : "";
+
+  const isRegisteredSelect = peopleId
+    ? "(ep.participant_id IS NOT NULL) AS \"isRegistered\""
+    : "false AS \"isRegistered\"";
+
+  const whereClause = filters.length
+    ? `WHERE ${filters.join(" AND ")}`
     : "";
 
   const result = await query(
@@ -38,8 +58,10 @@ export async function search(keyWord) {
           TO_CHAR(e.start_time, 'YYYY-MM-DD HH24:MI'),
           ' / ',
           COALESCE(l.location_name, '地点待定')
-        ) AS meta
+        ) AS meta,
+        ${isRegisteredSelect}
       FROM event e
+      ${participationJoin}
       LEFT JOIN location l ON l.location_id = e.location_id
       LEFT JOIN building b ON b.building_id = l.building_id
       LEFT JOIN campus c ON c.campus_id = b.campus_id
