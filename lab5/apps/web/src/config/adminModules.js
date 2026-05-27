@@ -6,7 +6,11 @@ import {
   courseApi,
   eventApi,
   peopleApi,
-  usersApi
+  usersApi,
+  teachingApi,
+  enrollmentApi,
+  eventParticipationApi,
+  queryRecordApi
 } from "../services/admin/entities.js";
 
 export const optionSets = {
@@ -33,6 +37,12 @@ export const optionSets = {
     (item) => [item, item]
   ),
   teacherTitle: ["助教", "讲师", "副教授", "教授", "研究员", "特聘教授", "其他"].map((item) => [item, item]),
+  semester: [
+    ["2025-2026-1", "2025-2026-1"],
+    ["2025-2026-2", "2025-2026-2"],
+    ["2026-2027-1", "2026-2027-1"],
+    ["2026-2027-2", "2026-2027-2"]
+  ],
   facilityType: ["教室", "食堂", "咖啡店", "自习室", "图书馆", "实验室", "运动场地", "办公室", "医务室", "其他"].map(
     (item) => [item, item]
   ),
@@ -264,6 +274,77 @@ export const adminModules = [
       { key: "roleType", label: "角色" },
       { key: "verificationStatus", label: "审核状态", format: "verificationStatus" },
       { key: "departmentName", label: "所属院系" }
+    ]
+  },
+  {
+    key: "teaching",
+    api: teachingApi,
+    label: "授课",
+    tableName: "Teaching",
+    description: "维护教师与课程的授课关系。",
+    fields: [
+      { key: "teacherId", label: "授课教师", type: "fk-select", options: "teachers", required: true },
+      { key: "courseId", label: "课程", type: "fk-select", options: "courses", required: true },
+      { key: "semester", label: "学期", type: "select", options: "semester", required: true }
+    ],
+    columns: [
+      { key: "teacherName", label: "授课教师" },
+      { key: "courseName", label: "课程" },
+      { key: "semester", label: "学期" }
+    ]
+  },
+  {
+    key: "enrollment",
+    api: enrollmentApi,
+    label: "选课",
+    tableName: "Enrollment",
+    description: "维护学生与课程的选课关系，成绩可为空。",
+    fields: [
+      { key: "studentId", label: "学生", type: "fk-select", options: "students", required: true },
+      { key: "courseId", label: "课程", type: "fk-select", options: "courses", required: true },
+      { key: "semester", label: "学期", type: "select", options: "semester", required: true },
+      { key: "grade", label: "成绩" }
+    ],
+    columns: [
+      { key: "studentName", label: "学生" },
+      { key: "studentNo", label: "学号" },
+      { key: "courseName", label: "课程" },
+      { key: "semester", label: "学期" },
+      { key: "grade", label: "成绩" }
+    ]
+  },
+  {
+    key: "eventParticipation",
+    api: eventParticipationApi,
+    label: "活动参与",
+    tableName: "EventParticipation",
+    description: "维护人员参与活动的关系。",
+    fields: [
+      { key: "participantId", label: "参与人员", type: "fk-select", options: "people", required: true },
+      { key: "eventId", label: "活动", type: "fk-select", options: "events", required: true }
+    ],
+    columns: [
+      { key: "participantName", label: "参与人员" },
+      { key: "eventName", label: "活动" },
+      { key: "registerTime", label: "报名时间", format: "datetime" }
+    ]
+  },
+  {
+    key: "queryRecord",
+    api: queryRecordApi,
+    label: "查询记录",
+    tableName: "QueryRecord",
+    description: "维护用户查询记录，查询结果可为空。",
+    fields: [
+      { key: "userId", label: "用户", type: "fk-select", options: "users", required: true },
+      { key: "rawQuestion", label: "原始问题", type: "textarea", required: true },
+      { key: "queryResult", label: "查询结果", type: "textarea" }
+    ],
+    columns: [
+      { key: "username", label: "用户" },
+      { key: "rawQuestion", label: "原始问题" },
+      { key: "queryTime", label: "查询时间", format: "datetime" },
+      { key: "queryResult", label: "查询结果" }
     ]
   }
 ];

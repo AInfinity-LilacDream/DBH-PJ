@@ -12,6 +12,7 @@ export function useAdminModuleState() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [fieldOptionMap, setFieldOptionMap] = useState({});
+  const [fieldOptionSearchMap, setFieldOptionSearchMap] = useState({});
 
   const activeModule = useMemo(
     () => adminModules.find((item) => item.key === activeKey) ?? adminModules[0],
@@ -50,47 +51,44 @@ export function useAdminModuleState() {
     loadRows(activeKey);
   }, [activeKey]);
 
-  useEffect(() => {
-    if (!isFormOpen || fkOptionKeys.length === 0) {
+  async function loadFieldOptions(optionKeys = fkOptionKeys, searchMap = fieldOptionSearchMap) {
+    if (!isFormOpen || optionKeys.length === 0) {
       return;
     }
 
-    let cancelled = false;
+    try {
+      const entries = await Promise.all(
+        optionKeys.map(async (optionKey) => {
+          const result = await fieldOptionsApi.list(optionKey, searchMap[optionKey] ?? "");
+          return [optionKey, result.data ?? []];
+        })
+      );
 
-    async function loadFieldOptions() {
-      try {
-        const entries = await Promise.all(
-          fkOptionKeys.map(async (optionKey) => {
-            const result = await fieldOptionsApi.list(optionKey);
-            return [optionKey, result.data ?? []];
-          })
-        );
-
-        if (!cancelled) {
-          setFieldOptionMap(Object.fromEntries(entries));
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setFieldOptionMap({});
-          setMessage(error.message);
-        }
-      }
+      setFieldOptionMap((current) => ({ ...current, ...Object.fromEntries(entries) }));
+    } catch (error) {
+      setMessage(error.message);
     }
+  }
 
+  useEffect(() => {
     loadFieldOptions();
-
-    return () => {
-      cancelled = true;
-    };
   }, [isFormOpen, fkOptionKeys]);
+
+  async function searchFieldOptions(optionKey, keyword) {
+    const nextSearchMap = { ...fieldOptionSearchMap, [optionKey]: keyword };
+    setFieldOptionSearchMap(nextSearchMap);
+    await loadFieldOptions([optionKey], nextSearchMap);
+  }
 
   function openCreateForm() {
     setEditingRow(null);
+    setFieldOptionSearchMap({});
     setIsFormOpen(true);
   }
 
   function openEditForm(row) {
     setEditingRow(row);
+    setFieldOptionSearchMap({});
     setIsFormOpen(true);
   }
 
@@ -136,6 +134,7 @@ export function useAdminModuleState() {
     setActiveKey(moduleKey);
     setIsFormOpen(false);
     setEditingRow(null);
+    setFieldOptionSearchMap({});
   }
 
   return {
@@ -149,6 +148,7 @@ export function useAdminModuleState() {
     isSubmitting,
     message,
     fieldOptionMap,
+    searchFieldOptions,
     openCreateForm,
     openEditForm,
     handleSubmit,
