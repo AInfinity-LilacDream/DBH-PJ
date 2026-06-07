@@ -1,13 +1,13 @@
 import { get } from "../http.js";
 
-export function searchLocations(keyWord) {
-  return get("/api/locations", { keyWord });
+export function searchLocations(filters = {}) {
+  return get("/api/locations", filters);
 }
 
-export function searchCourses(keyWord) {
-  return get("/api/courses", { keyWord });
+export function searchCourses(filters = {}) {
+  return get("/api/courses", filters);
 }
 
-export function searchEvents(keyWord, peopleId) {
-  return get("/api/events", { keyWord, peopleId });
+export function searchEvents(filters = {}, peopleId) {
+  return get("/api/events", { ...filters, peopleId });
 }

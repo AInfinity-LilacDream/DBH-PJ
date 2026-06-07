@@ -10,7 +10,7 @@ export const eventQueryController = {
   async search(req, res, next) {
     try {
       const peopleId = req.query.peopleId ? Number(req.query.peopleId) : null;
-      const rows = await eventQueryRepository.search(req.query.keyWord, peopleId);
+      const rows = await eventQueryRepository.search(req.query, peopleId);
       res.json({ data: rows });
     } catch (error) {
       next(error);

@@ -1,22 +1,25 @@
 import { query } from "../db/pool.js";
 import { createKeywordPattern } from "../utils/keyword.js";
 
-export async function search(keyWord) {
-  const keywordPattern = createKeywordPattern(keyWord);
-  const params = keywordPattern ? [keywordPattern] : [];
-  const whereClause = keywordPattern
-    ? `
-      WHERE
-        l.location_name ILIKE $1
-        OR l.facility_type ILIKE $1
-        OR COALESCE(l.description, '') ILIKE $1
-        OR COALESCE(l.open_time, '') ILIKE $1
-        OR b.building_name ILIKE $1
-        OR b.building_type ILIKE $1
-        OR c.campus_name ILIKE $1
-        OR c.address ILIKE $1
-    `
-    : "";
+function addFilter(filters, params, value, sql) {
+  if (!value) {
+    return;
+  }
+
+  params.push(value);
+  filters.push(sql(params.length));
+}
+
+export async function search(filters = {}) {
+  const keywordPattern = createKeywordPattern(filters.keyWord ?? filters.name);
+  const params = [];
+  const whereFilters = [];
+
+  addFilter(whereFilters, params, keywordPattern, (index) => `l.location_name ILIKE $${index}`);
+  addFilter(whereFilters, params, filters.campusId, (index) => `c.campus_id = $${index}`);
+  addFilter(whereFilters, params, filters.buildingId, (index) => `b.building_id = $${index}`);
+
+  const whereClause = whereFilters.length ? `WHERE ${whereFilters.join(" AND ")}` : "";
 
   const result = await query(
     `

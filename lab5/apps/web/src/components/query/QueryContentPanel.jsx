@@ -1,18 +1,138 @@
-import React, { useEffect, useState } from "react";
-import { Input } from "@heroui/react";
+import React, { useEffect, useMemo, useState } from "react";
+import { Input, Select, SelectItem } from "@heroui/react";
+import { DateRangePicker } from "@heroui/date-picker";
+import { parseDate } from "@internationalized/date";
 import { addToast } from "@heroui/toast";
 import { ChatPanel } from "./ChatPanel.jsx";
 import { EventCard } from "./EventCard.jsx";
 import { WaterfallCard } from "./WaterfallCard.jsx";
 import { registerForEvent } from "../../services/eventParticipationApi.js";
+import { listCatalogOptions } from "../../services/catalog/options.js";
 import { cleanInputClassNames } from "../../styles/inputClassNames.js";
+
+const emptyOptionKey = "__all__";
+
+const filterConfigs = {
+  "location-query": [
+    { key: "campusId", label: "所属校区", optionKey: "campuses" },
+    {
+      key: "buildingId",
+      label: "所属建筑",
+      optionKey: "buildings",
+      dependsOn: ["campusId"],
+      optionParams: { campusId: "campusId" }
+    }
+  ],
+  "course-query": [
+    { key: "depId", label: "开课院系", optionKey: "departments" },
+    {
+      key: "teacherId",
+      label: "授课老师",
+      optionKey: "teachers",
+      dependsOn: ["depId"],
+      optionParams: { depId: "depId" }
+    },
+    {
+      key: "semester",
+      label: "学期",
+      optionKey: "semesters",
+      dependsOn: ["depId", "teacherId"],
+      optionParams: { depId: "depId", teacherId: "teacherId" }
+    }
+  ],
+  "event-query": [
+    { key: "hostDepId", label: "举办院系", optionKey: "departments" },
+    { key: "campusId", label: "校区", optionKey: "campuses" },
+    {
+      key: "locationId",
+      label: "地点",
+      optionKey: "locations",
+      dependsOn: ["campusId"],
+      optionParams: { campusId: "campusId" }
+    },
+    { key: "dateRange", label: "时间范围", type: "dateRange", startKey: "startDate", endKey: "endDate" }
+  ]
+};
+
+function getSelectionValue(keys) {
+  const value = Array.from(keys)[0] ?? "";
+  return value === emptyOptionKey ? "" : value;
+}
+
+function createEmptyFilters(config) {
+  return config.reduce((values, field) => {
+    if (field.type === "dateRange") {
+      values[field.startKey] = "";
+      values[field.endKey] = "";
+      return values;
+    }
+
+    values[field.key] = "";
+    return values;
+  }, {});
+}
+
+function getDependentKeys(changedKey, config) {
+  const dependentKeys = new Set();
+  const queue = [changedKey];
+
+  while (queue.length) {
+    const currentKey = queue.shift();
+
+    config.forEach((field) => {
+      if (dependentKeys.has(field.key) || !field.dependsOn?.includes(currentKey)) {
+        return;
+      }
+
+      dependentKeys.add(field.key);
+      queue.push(field.key);
+    });
+  }
+
+  return dependentKeys;
+}
+
+function getOptionParams(field, filters) {
+  return Object.fromEntries(
+    Object.entries(field.optionParams ?? {})
+      .map(([paramKey, filterKey]) => [paramKey, filters[filterKey]])
+      .filter(([, value]) => value)
+  );
+}
+
+function toDatePickerValue(value) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return parseDate(String(value));
+  } catch {
+    return null;
+  }
+}
+
+function toDateRangePickerValue(startValue, endValue) {
+  const start = toDatePickerValue(startValue);
+  const end = toDatePickerValue(endValue);
+
+  if (!start && !end) {
+    return null;
+  }
+
+  return { start, end };
+}
 
 export function QueryContentPanel({ activeItem, user }) {
   const [keyword, setKeyword] = useState("");
+  const [filters, setFilters] = useState({});
+  const [optionMap, setOptionMap] = useState({});
   const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingOptions, setIsLoadingOptions] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const isEventQuery = activeItem.key === "event-query";
+  const activeFilterConfig = useMemo(() => filterConfigs[activeItem.key] ?? [], [activeItem.key]);
 
   function notify(message, color = "success") {
     addToast({
@@ -20,6 +140,24 @@ export function QueryContentPanel({ activeItem, user }) {
       color,
       timeout: 2600
     });
+  }
+
+  function updateFilter(key, value) {
+    setFilters((current) => {
+      const nextFilters = { ...current, [key]: value };
+      getDependentKeys(key, activeFilterConfig).forEach((dependentKey) => {
+        nextFilters[dependentKey] = "";
+      });
+      return nextFilters;
+    });
+  }
+
+  function updateDateRange(field, value) {
+    setFilters((current) => ({
+      ...current,
+      [field.startKey]: value?.start ? value.start.toString() : "",
+      [field.endKey]: value?.end ? value.end.toString() : ""
+    }));
   }
 
   async function handleRegister(eventId) {
@@ -36,6 +174,53 @@ export function QueryContentPanel({ activeItem, user }) {
   }
 
   useEffect(() => {
+    setKeyword("");
+    setFilters(createEmptyFilters(activeFilterConfig));
+  }, [activeFilterConfig]);
+
+  useEffect(() => {
+    if (!activeFilterConfig.length) {
+      setOptionMap({});
+      return;
+    }
+
+    let isCurrent = true;
+    const optionFields = activeFilterConfig.filter((field) => field.optionKey);
+
+    async function loadOptions() {
+      setIsLoadingOptions(true);
+
+      try {
+        const entries = await Promise.all(
+          optionFields.map(async (field) => {
+            const result = await listCatalogOptions(field.optionKey, getOptionParams(field, filters));
+            return [field.key, result.data ?? []];
+          })
+        );
+
+        if (isCurrent) {
+          setOptionMap(Object.fromEntries(entries));
+        }
+      } catch (error) {
+        if (isCurrent) {
+          setOptionMap({});
+          notify(error.message, "danger");
+        }
+      } finally {
+        if (isCurrent) {
+          setIsLoadingOptions(false);
+        }
+      }
+    }
+
+    loadOptions();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [activeFilterConfig, filters]);
+
+  useEffect(() => {
     if (activeItem.key === "new-chat") {
       return;
     }
@@ -47,9 +232,10 @@ export function QueryContentPanel({ activeItem, user }) {
       setErrorMessage("");
 
       try {
+        const searchFilters = { keyWord: keyword, ...filters };
         const result = isEventQuery
-          ? await activeItem.search(keyword, user?.peopleId ?? undefined)
-          : await activeItem.search(keyword);
+          ? await activeItem.search(searchFilters, user?.peopleId ?? undefined)
+          : await activeItem.search(searchFilters);
 
         if (isCurrent) {
           setItems(result.data ?? []);
@@ -71,7 +257,7 @@ export function QueryContentPanel({ activeItem, user }) {
     return () => {
       isCurrent = false;
     };
-  }, [activeItem, keyword, user?.peopleId, isEventQuery]);
+  }, [activeItem, keyword, filters, user?.peopleId, isEventQuery]);
 
   if (activeItem.key === "new-chat") {
     return <ChatPanel />;
@@ -94,23 +280,54 @@ export function QueryContentPanel({ activeItem, user }) {
 
       <div className="flex-1 overflow-auto px-5 py-6 sm:px-8">
         <div className="grid gap-5">
-          <section className="flex flex-wrap items-end justify-between gap-4">
-            <div className="max-w-2xl">
-              <h3 className="text-lg font-bold text-slate-950">全部{activeItem.label.replace("查询", "")}信息</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-600">{activeItem.description}</p>
+          <section className="grid gap-4">
+            <div className="flex flex-wrap items-end gap-3">
+              {activeFilterConfig.map((field) =>
+                field.type === "dateRange" ? (
+                  <DateRangePicker
+                    key={field.key}
+                    className="w-full sm:w-64"
+                    label={field.label}
+                    pageBehavior="single"
+                    radius="sm"
+                    value={toDateRangePickerValue(filters[field.startKey], filters[field.endKey])}
+                    visibleMonths={2}
+                    variant="bordered"
+                    onChange={(value) => updateDateRange(field, value)}
+                  />
+                ) : (
+                  <Select
+                    key={field.key}
+                    className="w-full sm:w-44"
+                    isLoading={isLoadingOptions && !optionMap[field.key]?.length}
+                    label={field.label}
+                    radius="sm"
+                    selectedKeys={[filters[field.key] ? String(filters[field.key]) : emptyOptionKey]}
+                    variant="bordered"
+                    onSelectionChange={(keys) => updateFilter(field.key, getSelectionValue(keys))}
+                  >
+                    <SelectItem key={emptyOptionKey}>全部</SelectItem>
+                    {(optionMap[field.key] ?? []).map((option) => (
+                      <SelectItem key={option.value}>{option.label}</SelectItem>
+                    ))}
+                  </Select>
+                )
+              )}
+
+              <Input
+                className="min-w-72 flex-1"
+                aria-label={`${activeItem.label}名称搜索`}
+                classNames={cleanInputClassNames}
+                isClearable
+                label="名称搜索"
+                placeholder="输入名称关键词"
+                radius="sm"
+                value={keyword}
+                variant="bordered"
+                onClear={() => setKeyword("")}
+                onValueChange={setKeyword}
+              />
             </div>
-            <Input
-              className="w-full sm:w-80"
-              aria-label={`${activeItem.label}关键词搜索`}
-              classNames={cleanInputClassNames}
-              isClearable
-              placeholder="关键词搜索"
-              radius="sm"
-              value={keyword}
-              variant="bordered"
-              onClear={() => setKeyword("")}
-              onValueChange={setKeyword}
-            />
           </section>
 
           {isLoading && (

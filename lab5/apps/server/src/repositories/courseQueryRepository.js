@@ -1,19 +1,38 @@
 import { query } from "../db/pool.js";
 import { createKeywordPattern } from "../utils/keyword.js";
 
-export async function search(keyWord) {
-  const keywordPattern = createKeywordPattern(keyWord);
-  const params = keywordPattern ? [keywordPattern] : [];
-  const whereClause = keywordPattern
-    ? `
-      WHERE
-        co.course_name ILIKE $1
-        OR COALESCE(co.description, '') ILIKE $1
-        OR d.dep_name ILIKE $1
-        OR COALESCE(t.teacher_names, '') ILIKE $1
-        OR COALESCE(t.semesters, '') ILIKE $1
-    `
-    : "";
+function addFilter(filters, params, value, sql) {
+  if (!value) {
+    return;
+  }
+
+  params.push(value);
+  filters.push(sql(params.length));
+}
+
+export async function search(filters = {}) {
+  const keywordPattern = createKeywordPattern(filters.keyWord ?? filters.name);
+  const params = [];
+  const whereFilters = [];
+  const teachingFilters = [];
+
+  addFilter(whereFilters, params, keywordPattern, (index) => `co.course_name ILIKE $${index}`);
+  addFilter(whereFilters, params, filters.depId, (index) => `co.dep_id = $${index}`);
+  addFilter(teachingFilters, params, filters.teacherId, (index) => `te.teacher_id = $${index}`);
+  addFilter(teachingFilters, params, filters.semester, (index) => `te.semester = $${index}`);
+
+  if (teachingFilters.length) {
+    whereFilters.push(`
+      EXISTS (
+        SELECT 1
+        FROM teaching te
+        WHERE te.course_id = co.course_id
+          AND ${teachingFilters.join(" AND ")}
+      )
+    `);
+  }
+
+  const whereClause = whereFilters.length ? `WHERE ${whereFilters.join(" AND ")}` : "";
 
   const result = await query(
     `

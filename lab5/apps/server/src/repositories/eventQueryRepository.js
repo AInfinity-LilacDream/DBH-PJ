@@ -1,25 +1,30 @@
 import { query } from "../db/pool.js";
 import { createKeywordPattern } from "../utils/keyword.js";
 
-export async function search(keyWord, peopleId = null) {
-  const keywordPattern = createKeywordPattern(keyWord);
+function addFilter(filters, params, value, sql) {
+  if (!value) {
+    return;
+  }
+
+  params.push(value);
+  filters.push(sql(params.length));
+}
+
+export async function search(filters = {}, peopleId = null) {
+  const keywordPattern = createKeywordPattern(filters.keyWord ?? filters.name);
   const params = [];
-  const filters = [];
+  const whereFilters = [];
 
   if (keywordPattern) {
     params.push(keywordPattern);
-    filters.push(`
-      (
-        e.event_name ILIKE $${params.length}
-        OR e.event_type ILIKE $${params.length}
-        OR COALESCE(e.description, '') ILIKE $${params.length}
-        OR COALESCE(d.dep_name, '') ILIKE $${params.length}
-        OR COALESCE(l.location_name, '') ILIKE $${params.length}
-        OR COALESCE(b.building_name, '') ILIKE $${params.length}
-        OR COALESCE(c.campus_name, '') ILIKE $${params.length}
-      )
-    `);
+    whereFilters.push(`e.event_name ILIKE $${params.length}`);
   }
+
+  addFilter(whereFilters, params, filters.hostDepId, (index) => `e.host_dep_id = $${index}`);
+  addFilter(whereFilters, params, filters.campusId, (index) => `c.campus_id = $${index}`);
+  addFilter(whereFilters, params, filters.locationId, (index) => `e.location_id = $${index}`);
+  addFilter(whereFilters, params, filters.startDate, (index) => `e.start_time >= $${index}::date`);
+  addFilter(whereFilters, params, filters.endDate, (index) => `e.start_time < ($${index}::date + INTERVAL '1 day')`);
 
   if (peopleId) {
     params.push(peopleId);
@@ -33,8 +38,8 @@ export async function search(keyWord, peopleId = null) {
     ? "(ep.participant_id IS NOT NULL) AS \"isRegistered\""
     : "false AS \"isRegistered\"";
 
-  const whereClause = filters.length
-    ? `WHERE ${filters.join(" AND ")}`
+  const whereClause = whereFilters.length
+    ? `WHERE ${whereFilters.join(" AND ")}`
     : "";
 
   const result = await query(
