@@ -7,6 +7,11 @@ export const env = {
   clientOrigin: process.env.CLIENT_ORIGIN ?? "http://localhost:5173",
   jwtSecret: process.env.JWT_SECRET ?? "dev-secret-change-me",
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "2h",
+  ai: {
+    apiKey: process.env.AI_API_KEY ?? process.env.OPENAI_API_KEY ?? "",
+    baseURL: process.env.AI_BASE_URL ?? undefined,
+    model: process.env.AI_MODEL ?? "gpt-4o-mini"
+  },
   db: {
     host: process.env.DB_HOST ?? "localhost",
     port: Number(process.env.DB_PORT ?? 5432),
