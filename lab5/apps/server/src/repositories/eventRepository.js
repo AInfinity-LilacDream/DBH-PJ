@@ -11,11 +11,15 @@ export async function listAll() {
       TO_CHAR(e.end_time, 'YYYY-MM-DD HH24:MI') AS "endTime",
       e.location_id AS "locationId",
       COALESCE(l.location_name, '') AS "locationName",
+      c.campus_id AS "campusId",
+      COALESCE(c.campus_name, '') AS "campusName",
       e.host_dep_id AS "hostDepId",
       COALESCE(d.dep_name, '') AS "hostDepartmentName",
       COALESCE(e.description, '') AS description
     FROM event e
     LEFT JOIN location l ON l.location_id = e.location_id
+    LEFT JOIN building b ON b.building_id = l.building_id
+    LEFT JOIN campus c ON c.campus_id = b.campus_id
     LEFT JOIN department d ON d.dep_id = e.host_dep_id
     ORDER BY e.event_id DESC
   `);

@@ -8,11 +8,14 @@ export async function listAll() {
       l.location_name AS "locationName",
       l.building_id AS "buildingId",
       b.building_name AS "buildingName",
+      c.campus_id AS "campusId",
+      c.campus_name AS "campusName",
       l.facility_type AS "facilityType",
       l.open_time AS "openTime",
       COALESCE(l.description, '') AS description
     FROM location l
     JOIN building b ON b.building_id = l.building_id
+    JOIN campus c ON c.campus_id = b.campus_id
     ORDER BY l.location_id DESC
   `);
 
