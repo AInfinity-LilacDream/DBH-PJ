@@ -6,7 +6,7 @@ import { addToast } from "@heroui/toast";
 import { ChatPanel } from "./ChatPanel.jsx";
 import { EventCard } from "./EventCard.jsx";
 import { WaterfallCard } from "./WaterfallCard.jsx";
-import { registerForEvent } from "../../services/eventParticipationApi.js";
+import { registerForEvent, unregisterFromEvent } from "../../services/eventParticipationApi.js";
 import { listCatalogOptions } from "../../services/catalog/options.js";
 import { cleanInputClassNames } from "../../styles/inputClassNames.js";
 
@@ -167,6 +167,19 @@ export function QueryContentPanel({ activeItem, user }) {
         current.map((item) => (item.eventId === eventId ? { ...item, isRegistered: true } : item))
       );
       notify("报名成功。");
+    } catch (error) {
+      notify(error.message, "danger");
+      throw error;
+    }
+  }
+
+  async function handleUnregister(eventId) {
+    try {
+      await unregisterFromEvent(user.userId, eventId);
+      setItems((current) =>
+        current.map((item) => (item.eventId === eventId ? { ...item, isRegistered: false } : item))
+      );
+      notify("已取消报名。");
     } catch (error) {
       notify(error.message, "danger");
       throw error;
@@ -351,6 +364,7 @@ export function QueryContentPanel({ activeItem, user }) {
                     item={item}
                     user={user}
                     onRegister={handleRegister}
+                    onUnregister={handleUnregister}
                   />
                 ) : (
                   <WaterfallCard key={`${item.title}-${item.meta}`} item={item} />
