@@ -1,30 +1,52 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
 import { Button, Textarea } from "@heroui/react";
 import { chatSuggestions } from "../../config/queryNavItems.js";
+import { API_BASE_URL } from "../../services/http.js";
 import { cleanInputClassNames } from "../../styles/inputClassNames.js";
+
+function getMessageText(message) {
+  if (Array.isArray(message.parts)) {
+    return message.parts
+      .filter((part) => part.type === "text")
+      .map((part) => part.text)
+      .join("");
+  }
+
+  return message.content ?? "";
+}
 
 export function ChatPanel() {
   const [draft, setDraft] = useState("");
-  const [messages, setMessages] = useState([
-    {
-      role: "assistant",
-      content: "你好，我是复旦百事通。现在是前端对话框占位，后续会接入后端问答接口。"
-    }
-  ]);
+  const scrollRef = useRef(null);
+  const { messages, sendMessage, status, stop, error } = useChat({
+    transport: new DefaultChatTransport({
+      api: `${API_BASE_URL}/api/chat`
+    })
+  });
+  const chatMessages = Array.isArray(messages) ? messages : [];
+  const isSending = status === "submitted" || status === "streaming";
 
-  function sendMessage() {
-    const content = draft.trim();
-
-    if (!content) {
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) {
       return;
     }
 
-    setMessages((current) => [
-      ...current,
-      { role: "user", content },
-      { role: "assistant", content: "收到。这里之后会展示基于数据库查询生成的回答。" }
-    ]);
+    element.scrollTop = element.scrollHeight;
+  }, [chatMessages]);
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    const content = draft.trim();
+
+    if (!content || isSending) {
+      return;
+    }
+
     setDraft("");
+    await sendMessage({ text: content });
   }
 
   return (
@@ -40,28 +62,44 @@ export function ChatPanel() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto px-5 py-6 sm:px-8">
+      <div ref={scrollRef} className="flex-1 overflow-auto px-5 py-6 sm:px-8">
         <div className="mx-auto grid max-w-3xl gap-4">
-          {messages.map((message, index) => (
-            <div
-              key={`${message.role}-${index}`}
-              className={
-                message.role === "user"
-                  ? "ml-auto max-w-[82%] rounded-lg bg-slate-900 px-4 py-3 text-sm leading-6 text-white"
-                  : "mr-auto max-w-[82%] rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700 shadow-sm"
-              }
-            >
-              {message.content}
+          {chatMessages.length === 0 ? (
+            <div className="mr-auto max-w-[82%] whitespace-pre-wrap rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700 shadow-sm">
+              你好，我是复旦百事通。你可以问我校园信息查询相关的问题。
             </div>
-          ))}
+          ) : null}
+
+          {chatMessages.map((message) => {
+            const content = getMessageText(message);
+
+            return (
+              <div
+                key={message.id}
+                className={
+                  message.role === "user"
+                    ? "ml-auto max-w-[82%] whitespace-pre-wrap rounded-lg bg-slate-900 px-4 py-3 text-sm leading-6 text-white"
+                    : "mr-auto max-w-[82%] whitespace-pre-wrap rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700 shadow-sm"
+                }
+              >
+                {content || (message.role === "assistant" ? "正在思考..." : "")}
+              </div>
+            );
+          })}
+
+          {error ? (
+            <div className="mr-auto max-w-[82%] rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
+              {error.message || "AI 响应失败，请稍后重试。"}
+            </div>
+          ) : null}
         </div>
       </div>
 
       <footer className="shrink-0 border-t border-slate-200 bg-white px-5 py-4 sm:px-8">
-        <div className="mx-auto grid max-w-3xl gap-3">
+        <form className="mx-auto grid max-w-3xl gap-3" onSubmit={handleSubmit}>
           <div className="flex flex-wrap gap-2">
             {chatSuggestions.map((item) => (
-              <Button key={item} size="sm" radius="sm" variant="flat" onPress={() => setDraft(item)}>
+              <Button key={item} size="sm" radius="sm" type="button" variant="flat" onPress={() => setDraft(item)}>
                 {item}
               </Button>
             ))}
@@ -78,11 +116,11 @@ export function ChatPanel() {
               variant="bordered"
               onValueChange={setDraft}
             />
-            <Button color="primary" radius="sm" onPress={sendMessage}>
-              发送
+            <Button color={isSending ? "default" : "primary"} radius="sm" type={isSending ? "button" : "submit"} onPress={isSending ? stop : undefined}>
+              {isSending ? "停止" : "发送"}
             </Button>
           </div>
-        </div>
+        </form>
       </footer>
     </section>
   );

@@ -10,6 +10,8 @@
     "lint": "node --check src/index.js"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.68",
+    "ai": "^6.0.197",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",

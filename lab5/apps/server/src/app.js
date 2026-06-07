@@ -5,6 +5,7 @@ import { adminRoutes } from "./routes/adminRoutes.js";
 import { accountRoutes } from "./routes/accountRoutes.js";
 import { authRoutes } from "./routes/authRoutes.js";
 import { catalogRoutes } from "./routes/catalogRoutes.js";
+import { chatRoutes } from "./routes/chatRoutes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 
 export const app = express();
@@ -19,6 +20,7 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api", accountRoutes);
 app.use("/api", catalogRoutes);
+app.use("/api", chatRoutes);
 app.use("/api", adminRoutes);
 
 app.use((_req, res) => {
