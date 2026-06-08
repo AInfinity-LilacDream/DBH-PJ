@@ -10,7 +10,9 @@ export const env = {
   ai: {
     apiKey: process.env.AI_API_KEY ?? process.env.OPENAI_API_KEY ?? "",
     baseURL: process.env.AI_BASE_URL ?? undefined,
-    model: process.env.AI_MODEL ?? "gpt-4o-mini"
+    model: process.env.AI_MODEL ?? "gpt-4o-mini",
+    sqlWriteEnabled: process.env.AI_SQL_WRITE_ENABLED !== "false",
+    sqlMaxRows: Number(process.env.AI_SQL_MAX_ROWS ?? 50)
   },
   db: {
     host: process.env.DB_HOST ?? "localhost",
