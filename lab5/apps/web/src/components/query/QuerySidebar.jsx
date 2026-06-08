@@ -5,7 +5,7 @@ import { QueryNavButton } from "./QueryNavButton.jsx";
 
 export function QuerySidebar({ navItems, activeItemKey, displayName, roleText, isAdmin, onSwitchItem, onSettingsAction }) {
   return (
-    <aside className="hidden w-72 shrink-0 flex-col border-r border-slate-200 bg-[#fbfaf7] lg:flex">
+    <aside className="hidden h-screen w-72 shrink-0 flex-col border-r border-slate-200 bg-[#fbfaf7] lg:flex">
       <div className="border-b border-slate-200 px-5 py-4">
         <div className="flex items-center gap-3">
           <div className="grid h-10 w-10 place-items-center rounded-lg bg-primary text-lg font-black text-white">F</div>

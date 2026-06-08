@@ -12,3 +12,7 @@ export function signAuthToken(user) {
     { expiresIn: env.jwtExpiresIn }
   );
 }
+
+export function verifyAuthToken(token) {
+  return jwt.verify(token, env.jwtSecret);
+}

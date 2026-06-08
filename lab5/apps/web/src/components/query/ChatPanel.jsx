@@ -15,6 +15,29 @@ const chatTextareaClassNames = {
   input: [...cleanInputClassNames.input, "pr-2"]
 };
 
+function getAuthHeaders() {
+  const token = localStorage.getItem("dbh_auth_token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function resolveSqlConfirmation(confirmationId, approved) {
+  const response = await fetch(`${API_BASE_URL}/api/chat/sql-confirmations/${confirmationId}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders()
+    },
+    body: JSON.stringify({ approved })
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.message || "确认操作失败");
+  }
+
+  return data.data;
+}
+
 function getMessageText(message) {
   if (Array.isArray(message.parts)) {
     return message.parts
@@ -26,13 +49,71 @@ function getMessageText(message) {
   return message.content ?? "";
 }
 
+function isConfirmationResponseText(content) {
+  return (
+    content.startsWith("我已确认这个可能修改数据库的操作，后端已执行该 SQL。") ||
+    content.startsWith("我已拒绝这个可能修改数据库的操作，后端未执行该 SQL。") ||
+    content.startsWith("我确认执行这个可能修改数据库的操作。") ||
+    content.startsWith("我拒绝执行这个可能修改数据库的操作。")
+  );
+}
+
+function isToolPart(part) {
+  return String(part?.type ?? "").includes("tool");
+}
+
+function getToolOutput(part) {
+  if (part?.state !== "output-available") {
+    return null;
+  }
+
+  return part.output ?? part.result ?? null;
+}
+
+function getExecutedSqlParts(message) {
+  if (!Array.isArray(message.parts)) {
+    return [];
+  }
+
+  return message.parts
+    .filter((part) => {
+      if (!isToolPart(part)) {
+        return false;
+      }
+
+      const output = getToolOutput(part);
+      // Only show executed SQL (has result, not pending confirmation, not denied)
+      return output && !output.needsConfirmation && !output.denied && output.result;
+    })
+    .map((part) => getToolOutput(part));
+}
+
+function getPendingConfirmation(message) {
+  if (!Array.isArray(message.parts)) {
+    return null;
+  }
+
+  for (const part of message.parts) {
+    if (!isToolPart(part)) {
+      continue;
+    }
+
+    const output = getToolOutput(part);
+    if (output?.needsConfirmation && output?.confirmationId && output?.sql) {
+      return output;
+    }
+  }
+
+  return null;
+}
+
 function hasActiveToolPart(message) {
   if (!Array.isArray(message.parts)) {
     return false;
   }
 
   return message.parts.some((part) => {
-    if (!String(part.type ?? "").includes("tool")) {
+    if (!isToolPart(part)) {
       return false;
     }
 
@@ -48,7 +129,7 @@ function isWaitingAfterToolCall(message) {
   const lastPart = message.parts[message.parts.length - 1];
 
   return (
-    String(lastPart?.type ?? "").includes("tool") &&
+    isToolPart(lastPart) &&
     ["output-available", "output-error", "output-denied"].includes(lastPart?.state)
   );
 }
@@ -75,6 +156,83 @@ function DatabaseQueryNotice() {
   return (
     <div className="mr-auto max-w-[82%] rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm leading-6 text-slate-500">
       正在查询数据库...
+    </div>
+  );
+}
+
+function SqlConfirmationCard({ confirmation, decision, error, disabled, onConfirm, onReject }) {
+  const isHandled = Boolean(decision);
+  const confirmSelected = decision === "confirmed" || decision === "confirming";
+  const rejectSelected = decision === "rejected" || decision === "rejecting";
+  const handledButtonClass = "pointer-events-none";
+  const idleButtonClass = isHandled ? "pointer-events-none bg-slate-200 text-slate-400" : "";
+
+  return (
+    <div className="mr-auto grid max-w-[82%] gap-3 rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm leading-6 text-slate-700">
+      <div>
+        <div className="font-semibold text-slate-900">可能修改数据库的操作</div>
+        <div className="mt-1 text-slate-500">{confirmation.reason || confirmation.message || "AI 请求执行一条写入 SQL。"}</div>
+      </div>
+      <pre className="max-h-40 overflow-auto rounded-md bg-white px-3 py-2 text-xs leading-5 text-slate-800">
+        <code>{confirmation.sql}</code>
+      </pre>
+      {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-xs leading-5 text-red-600">{error}</div> : null}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          className={confirmSelected ? handledButtonClass : idleButtonClass}
+          color={confirmSelected || !isHandled ? "primary" : "default"}
+          isDisabled={disabled && !isHandled}
+          radius="sm"
+          size="sm"
+          type="button"
+          variant={confirmSelected || !isHandled ? "solid" : "flat"}
+          onPress={() => onConfirm(confirmation)}
+        >
+          确认
+        </Button>
+        <Button
+          className={rejectSelected ? handledButtonClass : idleButtonClass}
+          color={rejectSelected ? "danger" : "default"}
+          isDisabled={disabled && !isHandled}
+          radius="sm"
+          size="sm"
+          type="button"
+          variant={rejectSelected ? "solid" : "flat"}
+          onPress={() => onReject(confirmation)}
+        >
+          拒绝
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function SqlExecutionDetail({ sql, reason, statementType, rowCount }) {
+  const [expanded, setExpanded] = useState(false);
+  const isWrite = ["insert", "update", "delete"].includes(statementType?.toLowerCase());
+
+  return (
+    <div className="mr-auto max-w-[82%] rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs leading-5 text-slate-600">
+      <button
+        className="flex w-full items-center gap-1.5 font-medium text-slate-700 hover:text-slate-900"
+        type="button"
+        onClick={() => setExpanded((prev) => !prev)}
+      >
+        <Icon icon={expanded ? "lucide:chevron-down" : "lucide:chevron-right"} width={14} height={14} />
+        <span>
+          已执行{isWrite ? "写入" : "查询"}：{reason || "数据库操作"}
+        </span>
+        {typeof rowCount === "number" ? (
+          <span className="ml-auto text-slate-400">
+            {rowCount} 行
+          </span>
+        ) : null}
+      </button>
+      {expanded ? (
+        <pre className="mt-2 max-h-40 overflow-auto rounded-md bg-white px-3 py-2 text-xs leading-5 text-slate-800 border border-slate-100">
+          <code>{sql}</code>
+        </pre>
+      ) : null}
     </div>
   );
 }
@@ -122,10 +280,13 @@ function MarkdownMessage({ content }) {
 
 export function ChatPanel() {
   const [draft, setDraft] = useState("");
+  const [confirmationDecisions, setConfirmationDecisions] = useState({});
+  const [confirmationErrors, setConfirmationErrors] = useState({});
   const scrollRef = useRef(null);
   const { messages, sendMessage, status, stop, error } = useChat({
     transport: new DefaultChatTransport({
-      api: `${API_BASE_URL}/api/chat`
+      api: `${API_BASE_URL}/api/chat`,
+      headers: getAuthHeaders
     })
   });
   const chatMessages = Array.isArray(messages) ? messages : [];
@@ -149,6 +310,71 @@ export function ChatPanel() {
 
     setDraft("");
     await sendMessage({ text: content });
+  }
+
+  async function respondToConfirmation(confirmation, decision) {
+    if (!confirmation?.confirmationId || isSending || confirmationDecisions[confirmation.confirmationId]) {
+      return;
+    }
+
+    const approved = decision === "confirmed";
+    const pendingDecision = approved ? "confirming" : "rejecting";
+    setConfirmationDecisions((current) => ({
+      ...current,
+      [confirmation.confirmationId]: pendingDecision
+    }));
+    setConfirmationErrors((current) => ({
+      ...current,
+      [confirmation.confirmationId]: ""
+    }));
+
+    try {
+      const confirmationResult = await resolveSqlConfirmation(confirmation.confirmationId, approved);
+
+      setConfirmationDecisions((current) => ({
+        ...current,
+        [confirmation.confirmationId]: decision
+      }));
+
+      if (!approved) {
+        await sendMessage({
+          text: [
+            "我已拒绝这个可能修改数据库的操作，后端未执行该 SQL。",
+            `confirmationId: ${confirmation.confirmationId}`,
+            `reason: ${confirmation.reason ?? ""}`,
+            "SQL:",
+            confirmation.sql,
+            "请取消该操作，不要修改数据库，并告诉我已经取消。"
+          ].join("\n")
+        });
+        return;
+      }
+
+      await sendMessage({
+        text: [
+          "我已确认这个可能修改数据库的操作，后端已执行该 SQL。",
+          `confirmationId: ${confirmation.confirmationId}`,
+          `reason: ${confirmation.reason ?? ""}`,
+          "SQL:",
+          confirmation.sql,
+          "执行结果:",
+          JSON.stringify(confirmationResult?.result ?? confirmationResult, null, 2),
+          "请基于该执行结果继续说明。",
+          "如果原计划还需要更多数据库修改，请立刻调用 runSql 生成下一条写库 SQL 的待确认操作。",
+          "不要在 Markdown 里展示确认 ID，也不要要求我用文字回复“确认”；前端只会根据 runSql 的 needsConfirmation 结果展示确认按钮。"
+        ].join("\n")
+      });
+    } catch (error) {
+      setConfirmationDecisions((current) => {
+        const next = { ...current };
+        delete next[confirmation.confirmationId];
+        return next;
+      });
+      setConfirmationErrors((current) => ({
+        ...current,
+        [confirmation.confirmationId]: error instanceof Error ? error.message : "确认操作失败"
+      }));
+    }
   }
 
   async function handleSubmit(event) {
@@ -190,22 +416,47 @@ export function ChatPanel() {
             const content = getMessageText(message);
             const isUser = message.role === "user";
             const isLatestMessage = index === chatMessages.length - 1;
+            const pendingConfirmation = !isUser ? getPendingConfirmation(message) : null;
             const isQueryingDatabase = !isUser && isSending && isLatestMessage && hasActiveToolPart(message);
             const isThinking =
               !isUser && isSending && isLatestMessage && !isQueryingDatabase && (!content || isWaitingAfterToolCall(message));
+            const executedSqls = !isUser ? getExecutedSqlParts(message) : [];
 
             if (!isUser) {
               return (
                 <React.Fragment key={message.id}>
-                  {content ? (
+                  {executedSqls.map((exec, execIndex) => (
+                    <SqlExecutionDetail
+                      key={`${message.id}-sql-${execIndex}`}
+                      sql={exec.sql}
+                      reason={exec.reason}
+                      statementType={exec.result?.statementType}
+                      rowCount={exec.result?.rowCount}
+                    />
+                  ))}
+                  {content && !pendingConfirmation ? (
                     <div className="mr-auto max-w-[82%] rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700 shadow-sm">
                       <MarkdownMessage content={content} />
                     </div>
+                  ) : null}
+                  {pendingConfirmation ? (
+                    <SqlConfirmationCard
+                      confirmation={pendingConfirmation}
+                      decision={confirmationDecisions[pendingConfirmation.confirmationId]}
+                      error={confirmationErrors[pendingConfirmation.confirmationId]}
+                      disabled={isSending}
+                      onConfirm={(nextConfirmation) => respondToConfirmation(nextConfirmation, "confirmed")}
+                      onReject={(nextConfirmation) => respondToConfirmation(nextConfirmation, "rejected")}
+                    />
                   ) : null}
                   {isQueryingDatabase ? <DatabaseQueryNotice /> : null}
                   {isThinking ? <ThinkingBubble /> : null}
                 </React.Fragment>
               );
+            }
+
+            if (isConfirmationResponseText(content)) {
+              return null;
             }
 
             return (

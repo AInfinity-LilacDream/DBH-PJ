@@ -44,7 +44,7 @@ export function QueryDashboard({ user, initialActiveKey, onEnterAccount, onEnter
   }
 
   return (
-    <main className="flex min-h-screen bg-white text-slate-950">
+    <main className="flex h-screen overflow-hidden bg-white text-slate-950">
       <QuerySidebar
         navItems={queryNavItems}
         activeItemKey={activeKey}
@@ -55,7 +55,7 @@ export function QueryDashboard({ user, initialActiveKey, onEnterAccount, onEnter
         onSettingsAction={handleSettingsAction}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <QueryTopHeader />
         <QueryMobileNav navItems={queryNavItems} activeItemKey={activeKey} onSwitchItem={handleSwitchItem} />
         {isMyEvents ? (
