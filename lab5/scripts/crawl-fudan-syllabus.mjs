@@ -38,6 +38,17 @@ const SYLLABUS_SIGNALS = [
   "成绩评定",
   "参考文献"
 ];
+const COURSE_FIELD_LINE_RE =
+  /^(课程名称|课程代码|课程序号|开课院系|院系|部门|教师|任课教师|授课教师|主讲教师|学期|学期 ID|学分|总学时|课程类别|课程分类|课程层级|适用门类|所属一级学科|授课语言|考核方式|实际\/上限人数|备注)\s*[：:]\s*(.*?)\s*$/gm;
+const COURSE_INTRO_START_RE =
+  /课程简介\s*[（(]\s*中文\s*[）)]\s*(?:\/\s*Course Description\s*\(in Chinese\))?\s*/i;
+const COURSE_INTRO_END_RES = [
+  /课程简介\s*[（(]\s*英文\s*[）)]\s*(?:\/\s*Course Description\s*\(in English\))?/i,
+  /教学目标\s*\/\s*Course Objectives/i,
+  /教学方式\s*\/\s*Teaching Methods/i,
+  /教学内容与进度安排\s*\/\s*Course Content/i,
+  /教学参考资料\s*\/\s*Suggested Readings/i
+];
 const SKIP_LINK_RE =
   /\.(?:css|js|png|jpe?g|gif|svg|ico|webp|mp4|mp3|avi|mov|zip|rar|7z|tar|gz)(?:[?#].*)?$/i;
 
@@ -58,6 +69,7 @@ function printHelp() {
   --detail-limit <n>      fdjwgl 大纲详情最多抓取条数，默认不限制
   --timeout-ms <n>        单次请求超时，默认 15000
   --out-dir <path>        输出目录，默认 lab5/data/fudan-syllabus
+  --from-json [path]      从已有 JSON 用字段正则提取课程信息并重新生成 SQL
   --allowed-host <host>   允许继续发现链接的域名，可重复使用
   --discover-all          在允许域名内按深度继续发现全部 HTML 链接
   --import-db             抓取后直接写入当前 PostgreSQL Course/Department 表
@@ -69,12 +81,13 @@ function printHelp() {
   FUDAN_COOKIE_FILE       存放 Cookie 字符串的本地文件
   FUDAN_ALLOWED_HOSTS     允许域名，多个域名用换行或逗号分隔
   FUDAN_SOURCES           数据源列表，多个值用换行或逗号分隔
+  FUDAN_INPUT_JSON        已有课程 JSON 路径，用于重新提取并生成 SQL
   FUDAN_FDJWGL_SEMESTER_ID  本科教务学期 ID，不填则从课程表页自动识别当前学期
   FUDAN_FDJWGL_SEMESTER     写入 Teaching.semester 的学期名，如 2025-2026-2
   FUDAN_FDJWGL_PAGE_SIZE    全校开课查询每页条数，默认 1000
   FUDAN_FDJWGL_CONCURRENCY  fdjwgl 大纲详情并发数，默认 4
   FUDAN_FDJWGL_DETAIL_LIMIT fdjwgl 大纲详情最多抓取条数，默认不限制
-  FUDAN_DESCRIPTION_MAX_CHARS  写入课程描述的最大长度，默认 20000
+  FUDAN_DESCRIPTION_MAX_CHARS  写入课程描述的最大长度，默认 1200
 
 Danxi 参考接口与全校大纲接口：
   fdjwgl: GET https://fdjwgl.fudan.edu.cn/student/for-std/course-table
@@ -103,8 +116,9 @@ function parseArgs(argv) {
     maxDepth: Number(process.env.FUDAN_MAX_DEPTH ?? 2),
     delayMs: Number(process.env.FUDAN_DELAY_MS ?? 800),
     timeoutMs: Number(process.env.FUDAN_TIMEOUT_MS ?? 15000),
+    inputJson: process.env.FUDAN_INPUT_JSON ?? "",
     minTextChars: Number(process.env.FUDAN_MIN_TEXT_CHARS ?? 300),
-    descriptionMaxChars: Number(process.env.FUDAN_DESCRIPTION_MAX_CHARS ?? 20000),
+    descriptionMaxChars: Number(process.env.FUDAN_DESCRIPTION_MAX_CHARS ?? 1200),
     fdjwglSemesterId: process.env.FUDAN_FDJWGL_SEMESTER_ID ?? "",
     fdjwglSemester: process.env.FUDAN_FDJWGL_SEMESTER ?? "",
     fdjwglPageSize: Number(process.env.FUDAN_FDJWGL_PAGE_SIZE ?? 1000),
@@ -140,6 +154,11 @@ function parseArgs(argv) {
       options.outDir = next();
     } else if (arg.startsWith("--out-dir=")) {
       options.outDir = arg.slice("--out-dir=".length);
+    } else if (arg === "--from-json") {
+      const value = argv[index + 1];
+      options.inputJson = value && !value.startsWith("--") ? next() : path.join(options.outDir, "fudan-syllabus.json");
+    } else if (arg.startsWith("--from-json=")) {
+      options.inputJson = arg.slice("--from-json=".length);
     } else if (arg === "--max-pages") {
       options.maxPages = Number(next());
     } else if (arg.startsWith("--max-pages=")) {
@@ -1455,8 +1474,128 @@ function inferDepartmentFromCourseCode(code) {
 function splitTeachers(value) {
   return cleanDataText(value)
     .split(/[、,，/;；]+/)
-    .map((teacher) => teacher.trim())
+    .map(cleanTeacherName)
     .filter(Boolean);
+}
+
+function cleanTeacherName(value) {
+  return cleanDataText(value)
+    .replace(/^(?:教师|任课教师|授课教师|主讲教师)\s*[：:]\s*/u, "")
+    .replace(/\s+(?:教授|副教授|讲师|助教|研究员|特聘教授|其他)$/u, "")
+    .trim();
+}
+
+function extractCourseFields(text) {
+  const fields = {};
+  const sourceText = String(text ?? "");
+  let match;
+
+  COURSE_FIELD_LINE_RE.lastIndex = 0;
+  while ((match = COURSE_FIELD_LINE_RE.exec(sourceText))) {
+    const label = match[1];
+    const value = cleanDataText(match[2]);
+    if (!value) {
+      continue;
+    }
+
+    if (label === "课程名称") {
+      fields.courseName = value;
+    } else if (label === "开课院系" || label === "院系" || label === "部门") {
+      fields.departmentName = value;
+    } else if (["教师", "任课教师", "授课教师", "主讲教师"].includes(label)) {
+      fields.teachers = splitTeachers(value);
+    } else if (label === "学期") {
+      fields.semesters = splitSemesterValues(value);
+    } else if (label === "课程代码") {
+      fields.code = value;
+    } else if (label === "课程序号") {
+      fields.lessonCode = value;
+    } else if (label === "学期 ID") {
+      fields.semesterId = value;
+    } else {
+      fields[normalizeCourseFieldKey(label)] = value;
+    }
+  }
+
+  return fields;
+}
+
+function splitSemesterValues(value) {
+  return cleanDataText(value)
+    .split(/[、,，/;；]+/)
+    .map(normalizeSemesterText)
+    .filter((semester) => /^\d{4}-\d{4}-[12]$/.test(semester));
+}
+
+function normalizeCourseFieldKey(label) {
+  const map = {
+    学分: "credits",
+    总学时: "totalPeriods",
+    课程类别: "courseCategory",
+    课程分类: "courseType",
+    课程层级: "courseLevel",
+    适用门类: "subjectClass",
+    所属一级学科: "firstSubject",
+    授课语言: "teachLang",
+    考核方式: "examMode",
+    "实际/上限人数": "capacity",
+    备注: "remark"
+  };
+  return map[label] ?? label;
+}
+
+function normalizeRecordFields(record, descriptionMaxChars = 20000) {
+  const text = normalizeText(record.text ?? record.description ?? "");
+  const extracted = extractCourseFields(text);
+  const courseName = cleanDataText(record.courseName) || extracted.courseName || "";
+  const departmentName =
+    cleanDataText(record.departmentName) ||
+    extracted.departmentName ||
+    inferDepartmentFromCourseCode(record.code ?? extracted.code) ||
+    "";
+  const teachers = unique([
+    ...(Array.isArray(record.teachers) ? record.teachers.map(cleanTeacherName) : []),
+    ...(extracted.teachers ?? [])
+  ].filter(Boolean));
+  const semesters = unique([
+    ...(Array.isArray(record.semesters) ? record.semesters.map(normalizeSemesterText) : []),
+    ...(extracted.semesters ?? [])
+  ].filter((semester) => /^\d{4}-\d{4}-[12]$/.test(semester)));
+  const sourceType = cleanDataText(record.sourceType) || "json";
+  const sourceUrl = cleanDataText(record.sourceUrl ?? record.requestedUrl);
+  const fetchedAt = cleanDataText(record.fetchedAt) || new Date().toISOString();
+  const normalizedText = text || normalizeText(Object.entries(extracted).map(([key, value]) => `${key}：${value}`).join("\n"));
+
+  return {
+    ...record,
+    ...extracted,
+    courseName,
+    departmentName,
+    title: cleanDataText(record.title) || (courseName ? `${courseName} - 课程数据` : "课程数据"),
+    sourceUrl,
+    requestedUrl: cleanDataText(record.requestedUrl) || sourceUrl,
+    fetchedAt,
+    sourceType,
+    code: cleanDataText(record.code) || extracted.code || "",
+    lessonCode: cleanDataText(record.lessonCode) || extracted.lessonCode || "",
+    teachers,
+    semesters,
+    textLength: normalizedText.length,
+    text: normalizedText,
+    description: buildDescription(
+      {
+        ...record,
+        courseName,
+        departmentName,
+        title: cleanDataText(record.title) || (courseName ? `${courseName} - 课程数据` : "课程数据"),
+        sourceUrl,
+        fetchedAt,
+        sourceType,
+        text: normalizedText
+      },
+      descriptionMaxChars
+    )
+  };
 }
 
 function cleanDataText(value) {
@@ -1543,13 +1682,31 @@ function inferDepartmentName({ title, text, sourceUrl, contextText = "" }) {
 function dedupeRecords(records, descriptionMaxChars) {
   const byCourse = new Map();
 
-  for (const record of records) {
+  for (const rawRecord of records) {
+    const record = normalizeRecordFields(rawRecord, descriptionMaxChars);
+    if (!record.courseName || !record.departmentName) {
+      continue;
+    }
+
     const key = `${record.departmentName}\n${record.courseName}`;
     const current = byCourse.get(key);
-    if (!current || record.textLength > current.textLength) {
+    if (!current) {
       byCourse.set(key, {
         ...record,
-        description: buildDescription(record, descriptionMaxChars)
+        description: record.description || buildDescription(record, descriptionMaxChars)
+      });
+    } else {
+      const base =
+        record.textLength > current.textLength
+          ? {
+              ...record,
+              description: record.description || buildDescription(record, descriptionMaxChars)
+            }
+          : current;
+      byCourse.set(key, {
+        ...base,
+        teachers: unique([...(current.teachers ?? []), ...(record.teachers ?? [])]),
+        semesters: unique([...(current.semesters ?? []), ...(record.semesters ?? [])])
       });
     }
   }
@@ -1561,29 +1718,60 @@ function dedupeRecords(records, descriptionMaxChars) {
 }
 
 function buildDescription(record, maxChars) {
-  if (record.sourceType && record.sourceType !== "web") {
-    const header = [
-      `数据来源：${record.sourceType}`,
-      `来源标题：${record.title || "未识别"}`,
-      `来源链接：${record.sourceUrl}`,
-      `抓取时间：${record.fetchedAt}`,
-      ""
-    ].join("\n");
-    const available = Math.max(1000, maxChars - header.length);
-    const body = record.text.length > available ? `${record.text.slice(0, available)}\n...` : record.text;
-    return `${header}${body}`;
+  const fields = extractCourseFields(record.text);
+  const intro = extractCourseIntro(record.text);
+  const courseName = cleanDataText(record.courseName) || fields.courseName || "课程信息";
+  const limit = Number.isFinite(maxChars) && maxChars > 0 ? maxChars : 1200;
+
+  if (!intro || intro.length > limit) {
+    return courseName;
   }
 
-  const header = [
-    "数据来源：复旦大学教学大纲页面",
-    `来源标题：${record.title || "未识别"}`,
-    `来源链接：${record.sourceUrl}`,
-    `抓取时间：${record.fetchedAt}`,
-    ""
-  ].join("\n");
-  const available = Math.max(1000, maxChars - header.length);
-  const body = record.text.length > available ? `${record.text.slice(0, available)}\n...` : record.text;
-  return `${header}${body}`;
+  return intro;
+}
+
+function extractCourseIntro(text) {
+  const sourceText = String(text ?? "");
+  const startMatch = COURSE_INTRO_START_RE.exec(sourceText);
+  if (!startMatch) {
+    return "";
+  }
+
+  const start = startMatch.index + startMatch[0].length;
+  const tail = sourceText.slice(start);
+  const endIndexes = COURSE_INTRO_END_RES
+    .map((pattern) => pattern.exec(tail)?.index ?? -1)
+    .filter((index) => index >= 0);
+  const end = endIndexes.length ? Math.min(...endIndexes) : tail.length;
+  return normalizeText(tail.slice(0, end)).replace(/^课程简介\s*[：:]\s*/u, "");
+}
+
+async function readRecordsFromJson(options) {
+  const inputPath = path.resolve(options.inputJson);
+  const json = JSON.parse(await fs.readFile(inputPath, "utf8"));
+  const rawRecords = Array.isArray(json) ? json : json.records ?? json.data;
+
+  if (!Array.isArray(rawRecords)) {
+    throw new Error(`课程 JSON 必须是数组，或包含 records/data 数组：${inputPath}`);
+  }
+
+  const records = dedupeRecords(rawRecords, options.descriptionMaxChars);
+  return {
+    records,
+    failures: [],
+    pdfFailures: [],
+    visitedCount: 0,
+    allowedHosts: [],
+    sourceReports: [
+      {
+        source: "json",
+        inputPath,
+        rawRecordCount: rawRecords.length,
+        recordCount: records.length,
+        fieldRegex: COURSE_FIELD_LINE_RE.source
+      }
+    ]
+  };
 }
 
 function stableId(value) {
@@ -1697,12 +1885,24 @@ WITH dept AS (
   FROM Course c
   JOIN dept d ON d.dep_id = c.dep_id
   WHERE c.course_name = ${sqlLiteral(record.courseName)}
-), person_row AS (
-  INSERT INTO People (name, gender, email)
-  VALUES (${sqlLiteral(teacher)}, 'O', ${sqlLiteral(`crawler-${stableId(`${record.departmentName}-${teacher}`).slice(0, 12)}@fudan.local`)})
-  ON CONFLICT (email)
-  DO UPDATE SET name = EXCLUDED.name
+), existing_teacher AS (
+  SELECT t.people_id
+  FROM Teacher t
+  JOIN People p ON p.people_id = t.people_id
+  JOIN dept d ON d.dep_id = t.dept_id
+  WHERE p.name = ${sqlLiteral(teacher)}
+  ORDER BY t.people_id
+  LIMIT 1
+), inserted_person AS (
+  INSERT INTO People (name, gender, phone, email)
+  SELECT ${sqlLiteral(teacher)}, 'O', NULL, NULL
+  WHERE NOT EXISTS (SELECT 1 FROM existing_teacher)
   RETURNING people_id
+), person_row AS (
+  SELECT people_id FROM existing_teacher
+  UNION ALL
+  SELECT people_id FROM inserted_person
+  LIMIT 1
 ), teacher_row AS (
   INSERT INTO Teacher (people_id, staff_no, title, dept_id)
   SELECT person_row.people_id,
@@ -1776,18 +1976,30 @@ async function importToDb(records) {
       );
 
       for (const teacherName of record.teachers ?? []) {
-        const email = `crawler-${stableId(`${record.departmentName}-${teacherName}`).slice(0, 12)}@fudan.local`;
         const staffNo = `CR${stableId(`${record.departmentName}-${teacherName}`).slice(0, 10).toUpperCase()}`;
-        const person = await client.query(
+        const existingTeacher = await client.query(
           `
-            INSERT INTO People (name, gender, email)
-            VALUES ($1, 'O', $2)
-            ON CONFLICT (email)
-            DO UPDATE SET name = EXCLUDED.name
-            RETURNING people_id
+            SELECT t.people_id
+            FROM Teacher t
+            JOIN People p ON p.people_id = t.people_id
+            WHERE p.name = $1 AND t.dept_id = $2
+            ORDER BY t.people_id
+            LIMIT 1
           `,
-          [teacherName, email]
+          [teacherName, dept.rows[0].dep_id]
         );
+        const person =
+          existingTeacher.rows[0] ??
+          (
+            await client.query(
+              `
+                INSERT INTO People (name, gender, phone, email)
+                VALUES ($1, 'O', NULL, NULL)
+                RETURNING people_id
+              `,
+              [teacherName]
+            )
+          ).rows[0];
 
         await client.query(
           `
@@ -1796,7 +2008,7 @@ async function importToDb(records) {
             ON CONFLICT (people_id)
             DO UPDATE SET dept_id = EXCLUDED.dept_id
           `,
-          [person.rows[0].people_id, staffNo, dept.rows[0].dep_id]
+          [person.people_id, staffNo, dept.rows[0].dep_id]
         );
 
         for (const semester of record.semesters ?? []) {
@@ -1806,7 +2018,7 @@ async function importToDb(records) {
               VALUES ($1, $2, $3)
               ON CONFLICT (teacher_id, course_id, semester) DO NOTHING
             `,
-            [person.rows[0].people_id, course.rows[0].course_id, semester]
+            [person.people_id, course.rows[0].course_id, semester]
           );
         }
       }
@@ -1828,16 +2040,21 @@ async function main() {
     return;
   }
 
-  const results = [];
-  for (const source of options.sources) {
-    if (source === "web") {
-      results.push(await crawlWeb(options));
-    } else if (source === "fdjwgl") {
-      results.push(await crawlFdjwgl(options));
+  let result;
+  if (options.inputJson) {
+    result = await readRecordsFromJson(options);
+  } else {
+    const results = [];
+    for (const source of options.sources) {
+      if (source === "web") {
+        results.push(await crawlWeb(options));
+      } else if (source === "fdjwgl") {
+        results.push(await crawlFdjwgl(options));
+      }
     }
+    result = combineResults(results, options);
   }
 
-  const result = combineResults(results, options);
   const output = await writeOutputs(result, options);
 
   if (options.importDb) {
@@ -1845,7 +2062,8 @@ async function main() {
     console.log(`已写入数据库：${result.records.length} 门课程`);
   }
 
-  console.log(`完成：数据源 ${options.sources.join("、")}，访问 ${result.visitedCount} 次，收录 ${result.records.length} 门课程`);
+  const sourceLabel = options.inputJson ? `json:${path.resolve(options.inputJson)}` : options.sources.join("、");
+  console.log(`完成：数据源 ${sourceLabel}，访问 ${result.visitedCount} 次，收录 ${result.records.length} 门课程`);
   console.log(`JSON：${output.jsonPath}`);
   console.log(`SQL：${output.sqlPath}`);
   console.log(`报告：${output.reportPath}`);

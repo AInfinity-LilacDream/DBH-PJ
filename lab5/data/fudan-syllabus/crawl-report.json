@@ -1,0 +1,17 @@
+{
+  "generatedAt": "2026-06-09T13:48:24.735Z",
+  "visitedCount": 0,
+  "recordCount": 3538,
+  "allowedHosts": [],
+  "sourceReports": [
+    {
+      "source": "json",
+      "inputPath": "/Users/zhaojingyan/Code/DBH-PJ/lab5/data/fudan-syllabus/fudan-syllabus.json",
+      "rawRecordCount": 3538,
+      "recordCount": 3538,
+      "fieldRegex": "^(课程名称|课程代码|课程序号|开课院系|院系|部门|教师|任课教师|授课教师|主讲教师|学期|学期 ID|学分|总学时|课程类别|课程分类|课程层级|适用门类|所属一级学科|授课语言|考核方式|实际\\/上限人数|备注)\\s*[：:]\\s*(.*?)\\s*$"
+    }
+  ],
+  "failures": [],
+  "pdfFailures": []
+}

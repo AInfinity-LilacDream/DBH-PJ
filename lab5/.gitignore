@@ -5,5 +5,4 @@ dist/
 *.log
 
 scripts/seed-demo-data.mjs
-data/fudan-syllabus/
 .fudan-cookie
