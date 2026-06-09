@@ -7,7 +7,30 @@ import * as queryRecordRepository from "../repositories/queryRecordRepository.js
 const STATEMENT_TIMEOUT_MS = 8000;
 const CONFIRMATION_TTL_MS = 5 * 60 * 1000;
 const WRITE_STATEMENTS = new Set(["insert", "update", "delete"]);
+const AUDIT_TABLES = ["queryrecord", "chatsession", "chatmessage"];
 const pendingWriteConfirmations = new Map();
+const PRIVATE_TABLES_FOR_NON_ADMIN = new Set(["sysuser", "queryrecord", "chatsession", "chatmessage"]);
+const PEOPLE_PRIVATE_COLUMNS = new Set(["phone", "email"]);
+const SQL_RESERVED_WORDS = new Set([
+  "where",
+  "join",
+  "left",
+  "right",
+  "inner",
+  "outer",
+  "full",
+  "cross",
+  "on",
+  "using",
+  "group",
+  "order",
+  "limit",
+  "offset",
+  "having",
+  "union",
+  "intersect",
+  "except"
+]);
 const BLOCKED_KEYWORDS = [
   "alter",
   "analyze",
@@ -154,9 +177,29 @@ EventParticipation(
 QueryRecord(
   record_id SERIAL PRIMARY KEY,
   user_id INT NOT NULL REFERENCES SysUser(user_id) ON DELETE CASCADE ON UPDATE CASCADE,
+  session_id INT REFERENCES ChatSession(session_id) ON DELETE SET NULL ON UPDATE CASCADE,
+  message_id INT REFERENCES ChatMessage(message_id) ON DELETE SET NULL ON UPDATE CASCADE,
   raw_question TEXT NOT NULL,
   query_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   query_result TEXT
+)
+
+ChatSession(
+  session_id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES SysUser(user_id) ON DELETE CASCADE ON UPDATE CASCADE,
+  title VARCHAR(100) NOT NULL DEFAULT '新对话',
+  title_status VARCHAR(20) NOT NULL CHECK title_status IN ('pending','generated','failed'),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+)
+
+ChatMessage(
+  message_id SERIAL PRIMARY KEY,
+  session_id INT NOT NULL REFERENCES ChatSession(session_id) ON DELETE CASCADE ON UPDATE CASCADE,
+  role VARCHAR(20) NOT NULL CHECK role IN ('user','assistant','tool','system'),
+  content TEXT NOT NULL,
+  metadata JSONB,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 )
 
 Trigger/business constraints:
@@ -170,6 +213,7 @@ Useful joins:
 - Enrollment.student_id = Student.people_id and Enrollment.course_id = Course.course_id
 - Location.building_id = Building.building_id and Building.campus_id = Campus.campus_id
 - Event.location_id = Location.location_id and Event.host_dep_id = Department.dep_id
+- QueryRecord.session_id = ChatSession.session_id and QueryRecord.message_id = ChatMessage.message_id
 `.trim();
 
 function normalizeSql(sql) {
@@ -224,6 +268,13 @@ function assertAllowedSql(sql) {
     throw new Error("当前环境未开启 AI 写表能力");
   }
 
+  if (
+    WRITE_STATEMENTS.has(statementType) &&
+    AUDIT_TABLES.some((tableName) => new RegExp(`\\b${tableName}\\b`, "i").test(sql))
+  ) {
+    throw new Error("AI 不允许修改对话或查询审计记录");
+  }
+
   return statementType;
 }
 
@@ -233,6 +284,205 @@ function normalizeUserId(user) {
 
 function isAdminUser(user) {
   return user?.roleType === "admin";
+}
+
+function normalizeSqlForPrivacyCheck(sql) {
+  return sql
+    .replace(/\$[a-z_][\w$]*\$[\s\S]*?\$[a-z_][\w$]*\$/gi, " ")
+    .replace(/\$\$[\s\S]*?\$\$/g, " ")
+    .replace(/'(?:''|[^'])*'/g, " ")
+    .replace(/"((?:[^"]|"")*)"/g, (_, identifier) => identifier.replace(/""/g, '"'))
+    .toLowerCase();
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeIdentifier(value) {
+  return String(value ?? "")
+    .replace(/\s+/g, "")
+    .split(".")
+    .at(-1)
+    ?.replace(/^"+|"+$/g, "")
+    .toLowerCase();
+}
+
+function collectTableAliases(normalizedSql) {
+  const aliasesByTable = new Map();
+  const tableRefPattern = /\b(?:from|join)\s+([a-z_][\w$]*(?:\s*\.\s*[a-z_][\w$]*)?)(?:\s+(?:as\s+)?([a-z_][\w$]*))?/gi;
+
+  for (const match of normalizedSql.matchAll(tableRefPattern)) {
+    const tableName = normalizeIdentifier(match[1]);
+    const alias = normalizeIdentifier(match[2]);
+
+    if (!tableName || SQL_RESERVED_WORDS.has(tableName)) {
+      continue;
+    }
+
+    if (!aliasesByTable.has(tableName)) {
+      aliasesByTable.set(tableName, new Set());
+    }
+
+    aliasesByTable.get(tableName).add(tableName);
+
+    if (alias && !SQL_RESERVED_WORDS.has(alias)) {
+      aliasesByTable.get(tableName).add(alias);
+    }
+  }
+
+  return aliasesByTable;
+}
+
+function getAliasesForTable(aliasesByTable, tableName) {
+  return [...(aliasesByTable.get(tableName) ?? new Set([tableName]))];
+}
+
+function referencesTable(normalizedSql, aliasesByTable, tableName) {
+  return aliasesByTable.has(tableName) || new RegExp(`\\b${escapeRegExp(tableName)}\\b`, "i").test(normalizedSql);
+}
+
+function hasAliasWildcard(normalizedSql, aliases) {
+  return aliases.some((alias) => new RegExp(`\\b${escapeRegExp(alias)}\\s*\\.\\s*\\*`, "i").test(normalizedSql));
+}
+
+function hasUnqualifiedSelectWildcard(normalizedSql) {
+  return /\bselect\s+(?:all\s+|distinct\s+)?\*/i.test(normalizedSql) || /,\s*\*/i.test(normalizedSql);
+}
+
+function hasQualifiedColumnReference(normalizedSql, aliases, column) {
+  return aliases.some((alias) => {
+    const escapedAlias = escapeRegExp(alias);
+    const escapedColumn = escapeRegExp(column);
+    return new RegExp(`\\b${escapedAlias}\\s*\\.\\s*${escapedColumn}\\b`, "i").test(normalizedSql);
+  });
+}
+
+function hasUnqualifiedColumnReference(normalizedSql, column) {
+  return new RegExp(`(^|[^.a-z0-9_$])${escapeRegExp(column)}\\b`, "i").test(normalizedSql);
+}
+
+function hasUnsafeSelfQueryShape(normalizedSql) {
+  return /\b(or|union|intersect|except)\b/i.test(normalizedSql);
+}
+
+function isAliasRestrictedToCurrentPerson(normalizedSql, alias, idColumn, peopleId) {
+  const currentPeopleId = Number(peopleId);
+
+  if (!Number.isInteger(currentPeopleId) || hasUnsafeSelfQueryShape(normalizedSql)) {
+    return false;
+  }
+
+  const idValue = String(currentPeopleId);
+  const escapedAlias = escapeRegExp(alias);
+  const escapedColumn = escapeRegExp(idColumn);
+  const columnEqualsId = new RegExp(`\\b${escapedAlias}\\s*\\.\\s*${escapedColumn}\\s*=\\s*${idValue}\\b`, "i");
+  const idEqualsColumn = new RegExp(`\\b${idValue}\\s*=\\s*${escapedAlias}\\s*\\.\\s*${escapedColumn}\\b`, "i");
+
+  return columnEqualsId.test(normalizedSql) || idEqualsColumn.test(normalizedSql);
+}
+
+function isSingleAliasRestrictedToCurrentPerson(normalizedSql, aliases, idColumn, peopleId) {
+  const currentPeopleId = Number(peopleId);
+
+  if (aliases.length !== 1 || !Number.isInteger(currentPeopleId) || hasUnsafeSelfQueryShape(normalizedSql)) {
+    return false;
+  }
+
+  return new RegExp(`\\b${escapeRegExp(idColumn)}\\s*=\\s*${currentPeopleId}\\b`, "i").test(normalizedSql);
+}
+
+function getAliasesWithQualifiedColumnReference(normalizedSql, aliases, column) {
+  return aliases.filter((alias) =>
+    new RegExp(`\\b${escapeRegExp(alias)}\\s*\\.\\s*${escapeRegExp(column)}\\b`, "i").test(normalizedSql)
+  );
+}
+
+function getAliasesWithWildcardReference(normalizedSql, aliases) {
+  return aliases.filter((alias) => new RegExp(`\\b${escapeRegExp(alias)}\\s*\\.\\s*\\*`, "i").test(normalizedSql));
+}
+
+function areAliasesRestrictedToCurrentPerson(normalizedSql, aliases, idColumn, peopleId) {
+  if (aliases.length === 0) {
+    return false;
+  }
+
+  if (aliases.every((alias) => isAliasRestrictedToCurrentPerson(normalizedSql, alias, idColumn, peopleId))) {
+    return true;
+  }
+
+  return isSingleAliasRestrictedToCurrentPerson(normalizedSql, aliases, idColumn, peopleId);
+}
+
+function createPrivacyDenial(message) {
+  return {
+    ok: false,
+    denied: true,
+    privacyDenied: true,
+    message
+  };
+}
+
+function getSqlPrivacyDenial(sql, { user, statementType }) {
+  if (isAdminUser(user) || !["select", "with"].includes(statementType)) {
+    return null;
+  }
+
+  const normalizedSql = normalizeSqlForPrivacyCheck(sql);
+  const aliasesByTable = collectTableAliases(normalizedSql);
+
+  for (const privateTable of PRIVATE_TABLES_FOR_NON_ADMIN) {
+    if (referencesTable(normalizedSql, aliasesByTable, privateTable)) {
+      return createPrivacyDenial("该 SQL 试图访问用户账号或查询记录等私密数据，已拒绝执行。");
+    }
+  }
+
+  if (referencesTable(normalizedSql, aliasesByTable, "people")) {
+    const peopleAliases = getAliasesForTable(aliasesByTable, "people");
+    const privateColumnAliases = new Set();
+
+    for (const column of PEOPLE_PRIVATE_COLUMNS) {
+      for (const alias of getAliasesWithQualifiedColumnReference(normalizedSql, peopleAliases, column)) {
+        privateColumnAliases.add(alias);
+      }
+    }
+
+    for (const alias of getAliasesWithWildcardReference(normalizedSql, peopleAliases)) {
+      privateColumnAliases.add(alias);
+    }
+
+    const touchesUnqualifiedPrivatePeopleColumns =
+      [...PEOPLE_PRIVATE_COLUMNS].some((column) => hasUnqualifiedColumnReference(normalizedSql, column)) ||
+      hasUnqualifiedSelectWildcard(normalizedSql);
+    const aliasesToRestrict = touchesUnqualifiedPrivatePeopleColumns ? peopleAliases : [...privateColumnAliases];
+
+    if (
+      aliasesToRestrict.length > 0 &&
+      !areAliasesRestrictedToCurrentPerson(normalizedSql, aliasesToRestrict, "people_id", user?.peopleId)
+    ) {
+      return createPrivacyDenial("该 SQL 可能泄露其他人的手机号或邮箱，已拒绝执行。");
+    }
+  }
+
+  if (referencesTable(normalizedSql, aliasesByTable, "enrollment")) {
+    const enrollmentAliases = getAliasesForTable(aliasesByTable, "enrollment");
+    const gradeAliases = new Set([
+      ...getAliasesWithQualifiedColumnReference(normalizedSql, enrollmentAliases, "grade"),
+      ...getAliasesWithWildcardReference(normalizedSql, enrollmentAliases)
+    ]);
+    const touchesUnqualifiedGrade =
+      hasUnqualifiedColumnReference(normalizedSql, "grade") || hasUnqualifiedSelectWildcard(normalizedSql);
+    const aliasesToRestrict = touchesUnqualifiedGrade ? enrollmentAliases : [...gradeAliases];
+
+    if (
+      aliasesToRestrict.length > 0 &&
+      !areAliasesRestrictedToCurrentPerson(normalizedSql, aliasesToRestrict, "student_id", user?.peopleId)
+    ) {
+      return createPrivacyDenial("该 SQL 可能泄露其他学生的成绩，已拒绝执行。");
+    }
+  }
+
+  return null;
 }
 
 function createSqlError(status, message) {
@@ -251,12 +501,14 @@ function pruneExpiredConfirmations() {
   }
 }
 
-function createWriteConfirmation({ user, sql, reason, statementType }) {
+function createWriteConfirmation({ user, sql, reason, statementType, sessionId, messageId }) {
   pruneExpiredConfirmations();
 
   const confirmationId = crypto.randomUUID();
   pendingWriteConfirmations.set(confirmationId, {
     userId: normalizeUserId(user),
+    sessionId: sessionId ?? null,
+    messageId: messageId ?? null,
     sql,
     reason,
     statementType,
@@ -315,7 +567,7 @@ function summarizeRows(rows, maxRows) {
   };
 }
 
-export async function executeAiSql(rawSql, { userId } = {}) {
+export async function executeAiSql(rawSql, { userId, sessionId, messageId } = {}) {
   const sql = normalizeSql(rawSql);
   const statementType = assertAllowedSql(sql);
   const maxRows = Number.isFinite(env.ai.sqlMaxRows) && env.ai.sqlMaxRows > 0 ? env.ai.sqlMaxRows : 50;
@@ -331,8 +583,10 @@ export async function executeAiSql(rawSql, { userId } = {}) {
 
     if (userId) {
       try {
-        const record = await queryRecordRepository.create({
+        const record = await queryRecordRepository.createWithContext({
           userId,
+          sessionId,
+          messageId,
           rawQuestion: `[${statementType.toUpperCase()}] ${sql}`,
           queryResult: JSON.stringify({
             statementType,
@@ -381,7 +635,11 @@ export async function resolveAiSqlConfirmation({ user, confirmationId, approved 
     };
   }
 
-  const result = await executeAiSql(confirmation.sql, { userId: Number(confirmation.userId) });
+  const result = await executeAiSql(confirmation.sql, {
+    userId: Number(confirmation.userId),
+    sessionId: confirmation.sessionId,
+    messageId: confirmation.messageId
+  });
   pendingWriteConfirmations.delete(confirmationId);
 
   return {
@@ -396,7 +654,7 @@ export async function resolveAiSqlConfirmation({ user, confirmationId, approved 
   };
 }
 
-export function createAiSqlTool({ user, confirmedConfirmationIds = new Set() } = {}) {
+export function createAiSqlTool({ user, confirmedConfirmationIds = new Set(), sessionId = null, messageId = null } = {}) {
   const userId = user?.userId ? Number(user.userId) : null;
 
   return tool({
@@ -441,7 +699,7 @@ export function createAiSqlTool({ user, confirmedConfirmationIds = new Set() } =
       }
 
       if (isWrite && !confirmationId) {
-        const nextConfirmationId = createWriteConfirmation({ user, sql, reason, statementType });
+        const nextConfirmationId = createWriteConfirmation({ user, sql, reason, statementType, sessionId, messageId });
 
         return {
           ok: false,
@@ -460,11 +718,22 @@ export function createAiSqlTool({ user, confirmedConfirmationIds = new Set() } =
         consumeWriteConfirmation({ user, confirmationId, sql, statementType, confirmedConfirmationIds });
       }
 
+      const privacyDenial = getSqlPrivacyDenial(sql, { user, statementType });
+      if (privacyDenial) {
+        return {
+          ...privacyDenial,
+          statementType,
+          isWrite,
+          reason,
+          sql
+        };
+      }
+
       return {
         reason,
         sql,
         confirmationId: confirmationId ?? null,
-        result: await executeAiSql(sql, { userId })
+        result: await executeAiSql(sql, { userId, sessionId, messageId })
       };
     }
   });

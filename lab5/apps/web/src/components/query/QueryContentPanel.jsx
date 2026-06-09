@@ -123,7 +123,17 @@ function toDateRangePickerValue(startValue, endValue) {
   return { start, end };
 }
 
-export function QueryContentPanel({ activeItem, user }) {
+export function QueryContentPanel({
+  activeItem,
+  user,
+  activeSession,
+  activeSessionId,
+  activeSessionMessages,
+  loadedSessionId,
+  onSessionCreated,
+  onNewChat,
+  onRefreshSessions
+}) {
   const [keyword, setKeyword] = useState("");
   const [filters, setFilters] = useState({});
   const [optionMap, setOptionMap] = useState({});
@@ -273,7 +283,17 @@ export function QueryContentPanel({ activeItem, user }) {
   }, [activeItem, keyword, filters, user?.peopleId, isEventQuery]);
 
   if (activeItem.key === "new-chat") {
-    return <ChatPanel />;
+    return (
+      <ChatPanel
+        activeSession={activeSession}
+        activeSessionId={activeSessionId}
+        activeSessionMessages={activeSessionMessages}
+        loadedSessionId={loadedSessionId}
+        onSessionCreated={onSessionCreated}
+        onNewChat={onNewChat}
+        onRefreshSessions={onRefreshSessions}
+      />
+    );
   }
 
   return (

@@ -57,6 +57,13 @@ export const optionSets = {
 
 export const adminModules = [
   {
+    key: "chatSession",
+    label: "对话会话",
+    tableName: "ChatSession",
+    description: "只读审计用户 AI 对话会话和消息记录。",
+    readOnlyPanel: "chat-session"
+  },
+  {
     key: "campus",
     api: campusApi,
     label: "校区",

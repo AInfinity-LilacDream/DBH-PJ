@@ -7,6 +7,8 @@ export async function listAll() {
       qr.record_id AS id,
       qr.user_id AS "userId",
       u.username,
+      qr.session_id AS "sessionId",
+      qr.message_id AS "messageId",
       qr.raw_question AS "rawQuestion",
       qr.query_time AS "queryTime",
       COALESCE(qr.query_result, '') AS "queryResult"
@@ -27,6 +29,25 @@ export async function create(payload) {
     `,
     [
       requireNumber(payload.userId, "用户"),
+      requireText(payload.rawQuestion, "原始问题"),
+      optionalText(payload.queryResult)
+    ]
+  );
+
+  return result.rows[0];
+}
+
+export async function createWithContext(payload) {
+  const result = await query(
+    `
+      INSERT INTO QueryRecord (user_id, session_id, message_id, raw_question, query_result)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING record_id AS id
+    `,
+    [
+      requireNumber(payload.userId, "用户"),
+      payload.sessionId ?? null,
+      payload.messageId ?? null,
       requireText(payload.rawQuestion, "原始问题"),
       optionalText(payload.queryResult)
     ]

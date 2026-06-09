@@ -6,7 +6,8 @@ import { Icon } from "@iconify/react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { chatSuggestions } from "../../config/queryNavItems.js";
-import { API_BASE_URL } from "../../services/http.js";
+import { createChatSession } from "../../services/chatSessions.js";
+import { API_BASE_URL, getAuthHeaders } from "../../services/http.js";
 import { cleanInputClassNames } from "../../styles/inputClassNames.js";
 
 const chatTextareaClassNames = {
@@ -15,9 +16,11 @@ const chatTextareaClassNames = {
   input: [...cleanInputClassNames.input, "pr-2"]
 };
 
-function getAuthHeaders() {
-  const token = localStorage.getItem("dbh_auth_token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
+function createChatRequestHeaders(sessionId) {
+  return {
+    ...getAuthHeaders(),
+    ...(sessionId ? { "X-Chat-Session-Id": String(sessionId) } : {})
+  };
 }
 
 async function resolveSqlConfirmation(confirmationId, approved) {
@@ -99,7 +102,7 @@ function getPendingConfirmation(message) {
     }
 
     const output = getToolOutput(part);
-    if (output?.needsConfirmation && output?.confirmationId && output?.sql) {
+    if (output?.needsConfirmation && !output.restored && output?.confirmationId && output?.sql) {
       return output;
     }
   }
@@ -207,6 +210,134 @@ function SqlConfirmationCard({ confirmation, decision, error, disabled, onConfir
   );
 }
 
+function restoreToolOutput(output) {
+  if (!output || typeof output !== "object") {
+    return output;
+  }
+
+  return {
+    ...output,
+    restored: true
+  };
+}
+
+function restoreToolPart(message) {
+  const metadata = message.metadata ?? {};
+  const storedPart = metadata.part && typeof metadata.part === "object" ? metadata.part : null;
+  const output = restoreToolOutput(storedPart?.output ?? storedPart?.result ?? metadata.output ?? metadata.toolOutput);
+
+  if (storedPart) {
+    return {
+      ...storedPart,
+      state: storedPart.state ?? "output-available",
+      ...(output ? { output } : {})
+    };
+  }
+
+  return {
+    type: metadata.toolType || metadata.toolName || "tool-runSql",
+    state: "output-available",
+    output
+  };
+}
+
+function getJsonValueEnd(text, startIndex) {
+  const pairs = {
+    "{": "}",
+    "[": "]"
+  };
+  const stack = [];
+  let inString = false;
+  let isEscaped = false;
+
+  for (let index = startIndex; index < text.length; index += 1) {
+    const char = text[index];
+
+    if (inString) {
+      if (isEscaped) {
+        isEscaped = false;
+      } else if (char === "\\") {
+        isEscaped = true;
+      } else if (char === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = true;
+      continue;
+    }
+
+    if (pairs[char]) {
+      stack.push(pairs[char]);
+      continue;
+    }
+
+    if (stack.length > 0 && char === stack[stack.length - 1]) {
+      stack.pop();
+      if (stack.length === 0) {
+        return index + 1;
+      }
+    }
+  }
+
+  return -1;
+}
+
+function stripStoredToolSummary(content) {
+  let text = String(content ?? "");
+  let toolIndex = text.indexOf("工具调用：");
+
+  while (toolIndex >= 0) {
+    const resultIndex = text.indexOf("执行结果：", toolIndex);
+    const sqlIndex = text.indexOf("SQL：", toolIndex);
+
+    if (resultIndex < 0 || sqlIndex < 0 || sqlIndex > resultIndex) {
+      break;
+    }
+
+    const jsonStart = text.slice(resultIndex + "执行结果：".length).search(/[\[{]/);
+    if (jsonStart < 0) {
+      break;
+    }
+
+    const absoluteJsonStart = resultIndex + "执行结果：".length + jsonStart;
+    const jsonEnd = getJsonValueEnd(text, absoluteJsonStart);
+    if (jsonEnd < 0) {
+      break;
+    }
+
+    text = `${text.slice(0, toolIndex)}${text.slice(jsonEnd)}`;
+    toolIndex = text.indexOf("工具调用：");
+  }
+
+  return text.trim();
+}
+
+function createUiMessagesFromStoredMessages(messages) {
+  return messages.map((message) => {
+    if (message.role === "tool") {
+      return {
+        id: `stored-${message.id}`,
+        role: "assistant",
+        parts: [restoreToolPart(message)],
+        metadata: {
+          ...(message.metadata ?? {}),
+          storedRole: "tool"
+        }
+      };
+    }
+
+    return {
+      id: `stored-${message.id}`,
+      role: message.role,
+      parts: [{ type: "text", text: message.role === "assistant" ? stripStoredToolSummary(message.content) : message.content }],
+      metadata: message.metadata ?? {}
+    };
+  });
+}
+
 function SqlExecutionDetail({ sql, reason, statementType, rowCount }) {
   const [expanded, setExpanded] = useState(false);
   const isWrite = ["insert", "update", "delete"].includes(statementType?.toLowerCase());
@@ -278,19 +409,42 @@ function MarkdownMessage({ content }) {
   );
 }
 
-export function ChatPanel() {
+export function ChatPanel({
+  activeSession,
+  activeSessionId,
+  activeSessionMessages,
+  loadedSessionId,
+  onSessionCreated,
+  onNewChat,
+  onRefreshSessions
+}) {
   const [draft, setDraft] = useState("");
   const [confirmationDecisions, setConfirmationDecisions] = useState({});
   const [confirmationErrors, setConfirmationErrors] = useState({});
+  const [localError, setLocalError] = useState("");
   const scrollRef = useRef(null);
-  const { messages, sendMessage, status, stop, error } = useChat({
+  const { messages, setMessages, sendMessage, status, stop, error } = useChat({
     transport: new DefaultChatTransport({
       api: `${API_BASE_URL}/api/chat`,
-      headers: getAuthHeaders
+      headers: () => createChatRequestHeaders(activeSessionId)
     })
   });
   const chatMessages = Array.isArray(messages) ? messages : [];
   const isSending = status === "submitted" || status === "streaming";
+
+  useEffect(() => {
+    if (isSending) {
+      return;
+    }
+
+    if (activeSessionId && loadedSessionId !== activeSessionId) {
+      return;
+    }
+
+    setMessages(createUiMessagesFromStoredMessages(activeSessionMessages ?? []));
+    setConfirmationDecisions({});
+    setConfirmationErrors({});
+  }, [activeSessionId, activeSessionMessages, loadedSessionId, setMessages]);
 
   useEffect(() => {
     const element = scrollRef.current;
@@ -308,8 +462,29 @@ export function ChatPanel() {
       return;
     }
 
-    setDraft("");
-    await sendMessage({ text: content });
+    setLocalError("");
+    let nextSessionId = activeSessionId;
+
+    try {
+      if (!nextSessionId) {
+        const result = await createChatSession();
+        const session = result.data;
+        nextSessionId = session?.id;
+        onSessionCreated?.(session);
+      }
+
+      setDraft("");
+      await sendMessage(
+        { text: content },
+        nextSessionId ? { headers: createChatRequestHeaders(nextSessionId) } : undefined
+      );
+      await onRefreshSessions?.();
+      window.setTimeout(() => {
+        onRefreshSessions?.();
+      }, 1800);
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : "发送失败，请稍后重试。");
+    }
   }
 
   async function respondToConfirmation(confirmation, decision) {
@@ -337,33 +512,43 @@ export function ChatPanel() {
       }));
 
       if (!approved) {
-        await sendMessage({
+        await sendMessage(
+          {
+            text: [
+              "我已拒绝这个可能修改数据库的操作，后端未执行该 SQL。",
+              `confirmationId: ${confirmation.confirmationId}`,
+              `reason: ${confirmation.reason ?? ""}`,
+              "SQL:",
+              confirmation.sql,
+              "请取消该操作，不要修改数据库，并告诉我已经取消。"
+            ].join("\n")
+          },
+          activeSessionId ? { headers: createChatRequestHeaders(activeSessionId) } : undefined
+        );
+        return;
+      }
+
+      await sendMessage(
+        {
           text: [
-            "我已拒绝这个可能修改数据库的操作，后端未执行该 SQL。",
+            "我已确认这个可能修改数据库的操作，后端已执行该 SQL。",
             `confirmationId: ${confirmation.confirmationId}`,
             `reason: ${confirmation.reason ?? ""}`,
             "SQL:",
             confirmation.sql,
-            "请取消该操作，不要修改数据库，并告诉我已经取消。"
+            "执行结果:",
+            JSON.stringify(confirmationResult?.result ?? confirmationResult, null, 2),
+            "请基于该执行结果继续说明。",
+            "如果原计划还需要更多数据库修改，请立刻调用 runSql 生成下一条写库 SQL 的待确认操作。",
+            "不要在 Markdown 里展示确认 ID，也不要要求我用文字回复“确认”；前端只会根据 runSql 的 needsConfirmation 结果展示确认按钮。"
           ].join("\n")
-        });
-        return;
-      }
-
-      await sendMessage({
-        text: [
-          "我已确认这个可能修改数据库的操作，后端已执行该 SQL。",
-          `confirmationId: ${confirmation.confirmationId}`,
-          `reason: ${confirmation.reason ?? ""}`,
-          "SQL:",
-          confirmation.sql,
-          "执行结果:",
-          JSON.stringify(confirmationResult?.result ?? confirmationResult, null, 2),
-          "请基于该执行结果继续说明。",
-          "如果原计划还需要更多数据库修改，请立刻调用 runSql 生成下一条写库 SQL 的待确认操作。",
-          "不要在 Markdown 里展示确认 ID，也不要要求我用文字回复“确认”；前端只会根据 runSql 的 needsConfirmation 结果展示确认按钮。"
-        ].join("\n")
-      });
+        },
+        activeSessionId ? { headers: createChatRequestHeaders(activeSessionId) } : undefined
+      );
+      await onRefreshSessions?.();
+      window.setTimeout(() => {
+        onRefreshSessions?.();
+      }, 1800);
     } catch (error) {
       setConfirmationDecisions((current) => {
         const next = { ...current };
@@ -400,7 +585,21 @@ export function ChatPanel() {
             <span>/</span>
             <span>智能问答</span>
           </div>
-          <h2 className="mt-1 truncate text-2xl font-black text-slate-950">新建对话</h2>
+          <div className="mt-1 flex items-center gap-3">
+            <h2 className="min-w-0 flex-1 truncate text-2xl font-black text-slate-950">
+              {activeSession?.title || "新建对话"}
+            </h2>
+            <Button
+              className="shrink-0"
+              isDisabled={isSending}
+              radius="sm"
+              size="sm"
+              variant="flat"
+              onPress={onNewChat}
+            >
+              新建对话
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -471,9 +670,9 @@ export function ChatPanel() {
 
           {isSending && chatMessages[chatMessages.length - 1]?.role === "user" ? <ThinkingBubble /> : null}
 
-          {error ? (
+          {localError || error ? (
             <div className="mr-auto max-w-[82%] rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
-              {error.message || "AI 响应失败，请稍后重试。"}
+              {localError || error.message || "AI 响应失败，请稍后重试。"}
             </div>
           ) : null}
         </div>

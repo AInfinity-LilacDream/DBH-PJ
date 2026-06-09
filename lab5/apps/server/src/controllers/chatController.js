@@ -1,10 +1,11 @@
 import { createOpenAI } from "@ai-sdk/openai";
-import { stepCountIs, ToolLoopAgent } from "ai";
+import { generateText, stepCountIs, ToolLoopAgent } from "ai";
 import { env } from "../config/env.js";
 import { createAiSqlTool, DATABASE_SCHEMA_FOR_AI, resolveAiSqlConfirmation } from "../services/aiSqlTool.js";
 import { HttpError } from "../utils/httpError.js";
-import { verifyAuthToken } from "../utils/token.js";
 import { query } from "../db/pool.js";
+import { readAuthUser } from "../middleware/auth.js";
+import * as chatSessionRepository from "../repositories/chatSessionRepository.js";
 
 const MAX_CONTEXT_MESSAGES = 20;
 
@@ -31,9 +32,12 @@ SQL 工具使用规则：
 12. 如果数据库结果为空，直接说明没有查到，并给出可能的下一步筛选建议。
 
 隐私与数据安全规则：
-13. 你只能向当前用户透露其本人的个人信息（姓名、性别、联系方式、学号/工号、院系、成绩等）。
-14. 查询其他用户（学生/教师/管理员）的数据时，禁止暴露任何个人身份信息（姓名、手机号、邮箱、学号、工号、成绩等）。只能提供去个性化的统计汇总数据（如人数、分布比例）或公开的课程/活动/地点等公共信息。
-15. 如果用户询问其他具体个人的信息，直接回复"抱歉，我无法查询其他用户的个人信息。"
+13. 严格区分“人员公开信息”和“用户私密信息”：People、Student、Teacher 是校园人员名录与人员身份信息，属于公开信息；SysUser、QueryRecord 以及 password_hash、username、verification_status、created_at、查询记录等账号与使用数据属于私密信息。
+14. People.phone、People.email 是非公开联系方式，不属于公开人员信息；除回答当前登录用户本人信息外，不能查询或展示其他人的手机号、邮箱。
+15. 回答课程授课、开课院系、院系成员、活动负责人等公开校园业务问题时，可以查询并展示 People、Student、Teacher、Department、Course、Teaching、Event 等表中与问题直接相关的公开人员信息，例如姓名、性别、学号/工号、年级、专业、职称、所属院系等。
+16. 禁止向普通用户透露其他人的 SysUser 账号信息、认证状态、密码哈希、查询记录等私密用户数据；除管理员明确提出管理需求外，不要查询或展示这些字段。
+17. Enrollment.grade 是学生成绩，只能向当前绑定学生本人或管理员在明确管理场景下展示；普通公开查询只能提供去个性化统计汇总。
+18. 如果用户询问其他人的账号、密码、认证状态、查询记录、联系方式或成绩等私密信息，直接回复"抱歉，我无法查询其他用户的私密信息。"
 `.trim();
 
 function buildUserContextString(userContext) {
@@ -59,6 +63,7 @@ function buildUserContextString(userContext) {
 
   if (userContext.peopleId) {
     context += `\n### 绑定的人员信息\n`;
+    context += `- 人员ID：${userContext.peopleId}\n`;
     context += `- 姓名：${userContext.name}\n`;
     context += `- 性别：${userContext.gender}\n`;
     if (userContext.phone) {
@@ -88,7 +93,7 @@ function buildUserContextString(userContext) {
     context += `\n该用户尚未绑定人员信息。\n`;
   }
 
-  context += `\n注意：你只能向当前用户透露以上其本人的信息。对其他任何人的个人信息必须严格保密。\n`;
+  context += `\n注意：当前登录用户的 SysUser 账号与认证信息仅用于权限判断，不要透露其他用户的私密用户数据；People、Student、Teacher 中除手机号、邮箱外的人员公开信息可以按公开校园业务场景回答。\n`;
   return context;
 }
 
@@ -134,21 +139,6 @@ async function fetchUserContext(user) {
   return result.rows[0] ?? null;
 }
 
-function getRequestUser(req) {
-  const header = req.get("authorization") ?? "";
-  const match = header.match(/^Bearer\s+(.+)$/i);
-
-  if (!match) {
-    return null;
-  }
-
-  try {
-    return verifyAuthToken(match[1]);
-  } catch (_error) {
-    return null;
-  }
-}
-
 function getConfirmedConfirmationIds(modelMessages) {
   const confirmedIds = new Set();
 
@@ -166,7 +156,199 @@ function getConfirmedConfirmationIds(modelMessages) {
   return confirmedIds;
 }
 
-function extractTextFromParts(parts) {
+function isConfirmationResponseText(content) {
+  return (
+    content.startsWith("我已确认这个可能修改数据库的操作，后端已执行该 SQL。") ||
+    content.startsWith("我已拒绝这个可能修改数据库的操作，后端未执行该 SQL。") ||
+    content.startsWith("我确认执行这个可能修改数据库的操作。") ||
+    content.startsWith("我拒绝执行这个可能修改数据库的操作。")
+  );
+}
+
+function getLastUserMessage(modelMessages) {
+  for (let index = modelMessages.length - 1; index >= 0; index -= 1) {
+    const message = modelMessages[index];
+
+    if (message.role === "user") {
+      return message;
+    }
+  }
+
+  return null;
+}
+
+function extractAssistantTextFromUiMessage(message) {
+  if (!message) {
+    return "";
+  }
+
+  if (typeof message.content === "string") {
+    return message.content.trim();
+  }
+
+  return extractVisibleTextFromParts(message.parts).trim();
+}
+
+function isToolPart(part) {
+  return String(part?.type ?? "").includes("tool");
+}
+
+function getToolOutput(part) {
+  if (part?.state !== "output-available") {
+    return null;
+  }
+
+  return part.output ?? part.result ?? null;
+}
+
+function firstNonEmptyText(values) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return "";
+}
+
+function getToolMessageContent(part) {
+  const output = getToolOutput(part);
+
+  return firstNonEmptyText([
+    output?.reason,
+    output?.message,
+    output?.sql,
+    part?.toolName,
+    part?.type,
+    "工具调用"
+  ]);
+}
+
+function getCompletedToolParts(message) {
+  if (!Array.isArray(message?.parts)) {
+    return [];
+  }
+
+  return message.parts.filter((part) => isToolPart(part) && getToolOutput(part));
+}
+
+function stringifyToolOutput(value) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  try {
+    const text = JSON.stringify(value);
+    return text.length > 4000 ? `${text.slice(0, 4000)}...` : text;
+  } catch (_error) {
+    return "";
+  }
+}
+
+function extractToolTextFromPart(part) {
+  if (!isToolPart(part)) {
+    return "";
+  }
+
+  const output = getToolOutput(part);
+  if (!output) {
+    return "";
+  }
+
+  const lines = [
+    `工具调用：${part?.toolName ?? part?.type ?? "runSql"}`,
+    output.reason ? `原因：${output.reason}` : "",
+    output.sql ? `SQL：${output.sql}` : "",
+    output.message ? `状态：${output.message}` : "",
+    output.denied ? "结果：工具调用被拒绝" : "",
+    output.needsConfirmation ? "结果：等待用户确认后执行" : "",
+    output.result ? `执行结果：${stringifyToolOutput(output.result)}` : ""
+  ].filter(Boolean);
+
+  return lines.join("\n");
+}
+
+async function persistToolMessages({ sessionId, responseMessage }) {
+  const toolParts = getCompletedToolParts(responseMessage);
+
+  for (const part of toolParts) {
+    await chatSessionRepository.createMessage({
+      sessionId,
+      role: "tool",
+      content: getToolMessageContent(part),
+      metadata: {
+        source: "ai-tool",
+        model: env.ai.model,
+        part,
+        toolType: part?.type ?? null,
+        toolName: part?.toolName ?? null,
+        output: getToolOutput(part)
+      }
+    });
+  }
+}
+
+async function resolveRequestSession(req, user) {
+  const rawSessionId = req.get("x-chat-session-id");
+
+  if (!rawSessionId) {
+    return null;
+  }
+
+  if (!user?.userId) {
+    throw new HttpError(401, "请先登录");
+  }
+
+  const session = await chatSessionRepository.findOwned(rawSessionId, user.userId);
+
+  if (!session) {
+    throw new HttpError(404, "对话不存在");
+  }
+
+  return session;
+}
+
+function cleanGeneratedTitle(text) {
+  const firstLine = String(text ?? "").split(/\r?\n/)[0] ?? "";
+
+  return firstLine
+    .replace(/^["'“”‘’`#\s]+|["'“”‘’`。！？.!?\s]+$/g, "")
+    .replace(/[`*_~[\](){}]/g, "")
+    .trim()
+    .slice(0, 16);
+}
+
+async function generateSessionTitle({ provider, sessionId, userText, assistantText }) {
+  try {
+    const result = await generateText({
+      model: provider.chat(env.ai.model),
+      system: "你负责为校园助手对话生成简短中文标题。只输出标题本身，不要解释。",
+      prompt: [
+        "请根据下面第一轮对话生成一个中文短标题。",
+        "要求：不超过16个中文字符；不要引号、句号、Markdown；优先概括用户意图。",
+        "",
+        `用户：${userText}`,
+        `助手：${assistantText}`
+      ].join("\n")
+    });
+    const title = cleanGeneratedTitle(result.text);
+
+    if (!title) {
+      await chatSessionRepository.updatePendingTitle(sessionId, "新对话", "failed");
+      return;
+    }
+
+    await chatSessionRepository.updatePendingTitle(sessionId, title, "generated");
+  } catch (_error) {
+    await chatSessionRepository.updatePendingTitle(sessionId, "新对话", "failed");
+  }
+}
+
+function extractVisibleTextFromParts(parts) {
   if (!Array.isArray(parts)) {
     return "";
   }
@@ -187,6 +369,32 @@ function extractTextFromParts(parts) {
     .trim();
 }
 
+function extractModelTextFromParts(parts) {
+  if (!Array.isArray(parts)) {
+    return "";
+  }
+
+  return parts
+    .map((part) => {
+      if (part?.type === "text" && typeof part.text === "string") {
+        return part.text;
+      }
+
+      const toolText = extractToolTextFromPart(part);
+      if (toolText) {
+        return toolText;
+      }
+
+      if (typeof part?.content === "string") {
+        return part.content;
+      }
+
+      return "";
+    })
+    .join("\n\n")
+    .trim();
+}
+
 function extractMessageText(message) {
   if (typeof message === "string") {
     return message.trim();
@@ -201,13 +409,13 @@ function extractMessageText(message) {
   }
 
   if (Array.isArray(message?.content)) {
-    const contentText = extractTextFromParts(message.content);
+    const contentText = extractModelTextFromParts(message.content);
     if (contentText) {
       return contentText;
     }
   }
 
-  return extractTextFromParts(message?.parts);
+  return extractModelTextFromParts(message?.parts);
 }
 
 function getMessageRole(message) {
@@ -250,13 +458,31 @@ export async function streamChat(req, res, next) {
       throw new HttpError(500, "AI_API_KEY 未配置");
     }
 
-    const user = getRequestUser(req);
+    const user = readAuthUser(req);
     const userContext = await fetchUserContext(user);
     const userContextString = buildUserContextString(userContext);
     const systemPrompt = BASE_SYSTEM_PROMPT + userContextString;
 
     const modelMessages = normalizeRequestMessages(req.body);
     const confirmedConfirmationIds = getConfirmedConfirmationIds(modelMessages);
+    const session = await resolveRequestSession(req, user);
+    const lastUserMessage = getLastUserMessage(modelMessages);
+    const shouldPersistUserMessage =
+      Boolean(session && lastUserMessage?.content) && !isConfirmationResponseText(lastUserMessage.content);
+    let persistedUserMessage = null;
+
+    if (shouldPersistUserMessage) {
+      try {
+        persistedUserMessage = await chatSessionRepository.createMessage({
+          sessionId: session.id,
+          role: "user",
+          content: lastUserMessage.content,
+          metadata: { source: "chat" }
+        });
+      } catch (_error) {
+        // 对话记录失败不影响本次流式响应
+      }
+    }
     const provider = createOpenAI({
       apiKey: env.ai.apiKey,
       ...(env.ai.baseURL ? { baseURL: env.ai.baseURL } : {})
@@ -265,7 +491,12 @@ export async function streamChat(req, res, next) {
       model: provider.chat(env.ai.model),
       instructions: systemPrompt,
       tools: {
-        runSql: createAiSqlTool({ user, confirmedConfirmationIds })
+        runSql: createAiSqlTool({
+          user,
+          confirmedConfirmationIds,
+          sessionId: session?.id ?? null,
+          messageId: persistedUserMessage?.id ?? null
+        })
       },
       stopWhen: stepCountIs(8)
     });
@@ -275,6 +506,49 @@ export async function streamChat(req, res, next) {
     });
 
     result.pipeUIMessageStreamToResponse(res, {
+      async onFinish({ responseMessage, isAborted }) {
+        if (!session || isAborted) {
+          return;
+        }
+
+        try {
+          const assistantText = extractAssistantTextFromUiMessage(responseMessage);
+
+          await persistToolMessages({
+            sessionId: session.id,
+            responseMessage
+          });
+
+          if (assistantText) {
+            await chatSessionRepository.createMessage({
+              sessionId: session.id,
+              role: "assistant",
+              content: assistantText,
+              metadata: { source: "ai", model: env.ai.model }
+            });
+          }
+
+          const conversationMessageCount = await chatSessionRepository.countConversationMessages(session.id);
+          if (assistantText && conversationMessageCount === 2) {
+            const titleUserText =
+              persistedUserMessage?.content ??
+              (await chatSessionRepository.getMessages(session.id)).find((message) => message.role === "user")?.content;
+
+            if (!titleUserText) {
+              return;
+            }
+
+            void generateSessionTitle({
+              provider,
+              sessionId: session.id,
+              userText: titleUserText,
+              assistantText
+            });
+          }
+        } catch (_error) {
+          // 对话记录失败不影响本次流式响应
+        }
+      },
       onError(error) {
         return error instanceof Error ? error.message : "AI 流式响应失败";
       }
@@ -286,7 +560,7 @@ export async function streamChat(req, res, next) {
 
 export async function confirmSqlWrite(req, res, next) {
   try {
-    const user = getRequestUser(req);
+    const user = readAuthUser(req);
 
     if (!user) {
       throw new HttpError(401, "请先登录");
