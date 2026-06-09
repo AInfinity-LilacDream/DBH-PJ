@@ -13,12 +13,17 @@ import {
   eventParticipationController,
   queryRecordController
 } from "../controllers/adminControllers.js";
+import { getAdminSessionDetail, listAdminSessions } from "../controllers/chatSessionController.js";
+import { requireAdmin } from "../middleware/auth.js";
 import * as fieldOptionsController from "../controllers/fieldOptionsController.js";
 import { registerCrudRoutes } from "../utils/registerCrudRoutes.js";
 
 export const adminRoutes = Router();
 
+adminRoutes.use("/admin", requireAdmin);
 adminRoutes.get("/admin/options/:optionKey", fieldOptionsController.list);
+adminRoutes.get("/admin/chat-sessions", listAdminSessions);
+adminRoutes.get("/admin/chat-sessions/:sessionId", getAdminSessionDetail);
 
 const adminResources = [
   ["campuses", campusController],

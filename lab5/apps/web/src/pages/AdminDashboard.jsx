@@ -7,6 +7,7 @@ import { AdminMobileNav } from "../components/admin/AdminMobileNav.jsx";
 import { AdminMessageBanner } from "../components/admin/AdminMessageBanner.jsx";
 import { AdminDataTable } from "../components/admin/AdminDataTable.jsx";
 import { AdminFormModal } from "../components/admin/AdminFormModal.jsx";
+import { AdminChatSessionPanel } from "../components/admin/AdminChatSessionPanel.jsx";
 import { useAdminModuleState } from "../hooks/useAdminModuleState.js";
 
 export function AdminDashboard({ user, onBackHome, onLogout }) {
@@ -50,27 +51,33 @@ export function AdminDashboard({ user, onBackHome, onLogout }) {
         <AdminMessageBanner message={message} />
 
         <div className="min-h-0 flex-1 overflow-auto p-5 sm:p-8">
-          <AdminDataTable
-            activeModule={activeModule}
-            isLoading={isLoading}
-            rows={rows}
-            onCreate={openCreateForm}
-            onEdit={openEditForm}
-            onDelete={handleDelete}
-          />
+          {activeModule.readOnlyPanel === "chat-session" ? (
+            <AdminChatSessionPanel />
+          ) : (
+            <AdminDataTable
+              activeModule={activeModule}
+              isLoading={isLoading}
+              rows={rows}
+              onCreate={openCreateForm}
+              onEdit={openEditForm}
+              onDelete={handleDelete}
+            />
+          )}
         </div>
       </section>
 
-      <AdminFormModal
-        isOpen={isFormOpen}
-        onOpenChange={setIsFormOpen}
-        activeModule={activeModule}
-        editingRow={editingRow}
-        fieldOptionMap={fieldOptionMap}
-        onSearchFieldOptions={searchFieldOptions}
-        isSubmitting={isSubmitting}
-        onSubmit={handleSubmit}
-      />
+      {activeModule.readOnlyPanel === "chat-session" ? null : (
+        <AdminFormModal
+          isOpen={isFormOpen}
+          onOpenChange={setIsFormOpen}
+          activeModule={activeModule}
+          editingRow={editingRow}
+          fieldOptionMap={fieldOptionMap}
+          onSearchFieldOptions={searchFieldOptions}
+          isSubmitting={isSubmitting}
+          onSubmit={handleSubmit}
+        />
+      )}
     </main>
   );
 }

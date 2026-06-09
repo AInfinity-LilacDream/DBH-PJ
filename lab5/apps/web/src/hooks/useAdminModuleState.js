@@ -22,7 +22,7 @@ export function useAdminModuleState() {
   const fkOptionKeys = useMemo(
     () => [
       ...new Set(
-        activeModule.fields
+        (activeModule.fields ?? [])
           .filter((field) => field.type === "fk-select" && field.options)
           .map((field) => field.options)
       )
@@ -35,6 +35,12 @@ export function useAdminModuleState() {
     setMessage("");
 
     const module = adminModules.find((item) => item.key === moduleKey) ?? activeModule;
+
+    if (!module.api) {
+      setRows([]);
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const result = await module.api.list();
