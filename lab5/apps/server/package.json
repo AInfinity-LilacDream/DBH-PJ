@@ -1,0 +1,22 @@
+{
+  "name": "@dbh-pj/server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "build": "node --check src/index.js",
+    "lint": "node --check src/index.js"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^3.0.68",
+    "ai": "^6.0.197",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.13.1"
+  }
+}

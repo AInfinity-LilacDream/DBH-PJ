@@ -1,0 +1,25 @@
+{
+  "name": "dbh-pj-lab5",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "dev:server": "npm run dev -w @dbh-pj/server",
+    "dev:web": "npm run dev -w @dbh-pj/web",
+    "seed:demo": "node scripts/seed-demo-data.mjs",
+    "generate:fudan-campus-sql": "node scripts/generate-fudan-campus-sql.mjs",
+    "test:ai-api": "node scripts/test-ai-api.mjs",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-darwin-arm64": "^4.60.4"
+  },
+  "dependencies": {
+    "@iconify/react": "^6.0.2"
+  }
+}
