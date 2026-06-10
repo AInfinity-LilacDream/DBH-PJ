@@ -1,0 +1,673 @@
+{
+  "metadata": {
+    "description": "复旦公开地点参考数据，活动为基于真实校区、建筑、地点组合出的演示数据。",
+    "sources": [
+      {
+        "name": "复旦大学：访问复旦",
+        "url": "https://www.fudan.edu.cn/453/list.htm"
+      },
+      {
+        "name": "复旦大学基本建设处：校园地图",
+        "url": "https://jijian.fudan.edu.cn/43607/list.htm"
+      },
+      {
+        "name": "复旦大学图书馆：布局/开放时间",
+        "url": "https://library.fudan.edu.cn/9/list.htm"
+      },
+      {
+        "name": "复旦大学图书馆：图书借还",
+        "url": "https://library.fudan.edu.cn/105/list.htm"
+      },
+      {
+        "name": "复旦大学图书馆：院系资料室",
+        "url": "https://library.fudan.edu.cn/47/list.htm"
+      },
+      {
+        "name": "复旦大学总务处：联系我们",
+        "url": "https://zongwuchu.fudan.edu.cn/39289/list.htm"
+      },
+      {
+        "name": "复旦大学总务处：关于场地使用",
+        "url": "https://zongwuchu.fudan.edu.cn/39412/list.htm"
+      },
+      {
+        "name": "复旦大学：场馆设施",
+        "url": "https://www.fudan.edu.cn/22/list.htm"
+      }
+    ]
+  },
+  "campuses": [
+    {
+      "name": "邯郸校区",
+      "address": "上海市杨浦区邯郸路220号",
+      "sourceUrl": "https://www.fudan.edu.cn/453/list.htm"
+    },
+    {
+      "name": "江湾校区",
+      "address": "上海市杨浦区淞沪路2005号",
+      "sourceUrl": "https://www.fudan.edu.cn/453/list.htm"
+    },
+    {
+      "name": "枫林校区",
+      "address": "上海市徐汇区医学院路138号",
+      "sourceUrl": "https://www.fudan.edu.cn/453/list.htm"
+    },
+    {
+      "name": "张江校区",
+      "address": "上海市浦东新区张衡路825号",
+      "sourceUrl": "https://www.fudan.edu.cn/453/list.htm"
+    }
+  ],
+  "buildings": [
+    {
+      "name": "光华楼",
+      "campusName": "邯郸校区",
+      "buildingType": "教学楼",
+      "description": "邯郸校区标志性教学与办公建筑，公开资料中出现光华楼东主楼、东辅楼等办公地点。",
+      "sourceUrl": "https://library.fudan.edu.cn/47/list.htm"
+    },
+    {
+      "name": "文科图书馆",
+      "campusName": "邯郸校区",
+      "buildingType": "图书馆",
+      "description": "复旦大学图书馆邯郸校区文科馆，包含参考阅览室、文学艺术书库等空间。",
+      "sourceUrl": "https://library.fudan.edu.cn/e7/cf/c42796a518095/page.htm"
+    },
+    {
+      "name": "第三教学楼",
+      "campusName": "邯郸校区",
+      "buildingType": "教学楼",
+      "description": "总务处公开信息列为邯郸校区通宵自修教室所在教学楼。",
+      "sourceUrl": "https://zongwuchu.fudan.edu.cn/39412/list.htm"
+    },
+    {
+      "name": "第四教学楼",
+      "campusName": "邯郸校区",
+      "buildingType": "教学楼",
+      "description": "总务处一站式业务服务窗口所在建筑之一。",
+      "sourceUrl": "https://zongwuchu.fudan.edu.cn/39289/list.htm"
+    },
+    {
+      "name": "正大体育馆",
+      "campusName": "邯郸校区",
+      "buildingType": "体育设施",
+      "description": "邯郸校区南苑生活区综合性体育馆，可用于比赛、集会和文娱演出。",
+      "sourceUrl": "https://www.fudan.edu.cn/2019/0426/c525a96268/page.htm"
+    },
+    {
+      "name": "李兆基图书馆",
+      "campusName": "江湾校区",
+      "buildingType": "图书馆",
+      "description": "复旦大学江湾馆，馆内包含人文艺术阅览室、文科借阅区、理科借阅区等空间。",
+      "sourceUrl": "https://library.fudan.edu.cn/121/list.htm"
+    },
+    {
+      "name": "智华楼",
+      "campusName": "江湾校区",
+      "buildingType": "教学楼",
+      "description": "江湾校区教学楼，总务处公开信息列有智华楼101、102通宵自修教室。",
+      "sourceUrl": "https://zongwuchu.fudan.edu.cn/39412/list.htm"
+    },
+    {
+      "name": "廖凯原法学楼",
+      "campusName": "江湾校区",
+      "buildingType": "教学楼",
+      "description": "江湾校区法学院相关建筑，江湾校区管委会公开联系方式中出现该楼位置。",
+      "sourceUrl": "https://www.jwb.fudan.edu.cn/"
+    },
+    {
+      "name": "江湾校区综合体育馆",
+      "campusName": "江湾校区",
+      "buildingType": "体育设施",
+      "description": "江湾校区综合体育馆，包含室内游泳馆、篮球场、羽毛球场等设施。",
+      "sourceUrl": "https://jijian.fudan.edu.cn/62/b9/c6525a418489/page.htm"
+    },
+    {
+      "name": "江湾校区运动场",
+      "campusName": "江湾校区",
+      "buildingType": "体育设施",
+      "description": "江湾校区室外运动场，公开信息列有足球场、篮球场、排球场和塑胶跑道。",
+      "sourceUrl": "https://www.fudan.edu.cn/2019/0426/c525a96269/page.htm"
+    },
+    {
+      "name": "医科图书馆",
+      "campusName": "枫林校区",
+      "buildingType": "图书馆",
+      "description": "复旦大学图书馆医科馆，公开信息包含24小时无人值守图书馆和医学图书区。",
+      "sourceUrl": "https://library.fudan.edu.cn/105/list.htm"
+    },
+    {
+      "name": "第二教学楼",
+      "campusName": "枫林校区",
+      "buildingType": "教学楼",
+      "description": "总务处公开信息列为枫林校区通宵自修教室所在教学楼。",
+      "sourceUrl": "https://zongwuchu.fudan.edu.cn/39412/list.htm"
+    },
+    {
+      "name": "东三号楼",
+      "campusName": "枫林校区",
+      "buildingType": "行政楼",
+      "description": "枫林校区总务一站式业务服务窗口和办事点相关建筑。",
+      "sourceUrl": "https://zongwuchu.fudan.edu.cn/39289/list.htm"
+    },
+    {
+      "name": "枫林综合游泳馆",
+      "campusName": "枫林校区",
+      "buildingType": "体育设施",
+      "description": "枫林校区综合游泳馆，公开信息列有室内游泳池、篮球馆、排球馆和健身房。",
+      "sourceUrl": "https://www.fudan.edu.cn/22/list.htm"
+    },
+    {
+      "name": "计算机楼",
+      "campusName": "张江校区",
+      "buildingType": "教学楼",
+      "description": "张江图书馆读者服务中心所在建筑，公开信息列有计算机楼101阶梯教室。",
+      "sourceUrl": "https://library.fudan.edu.cn/e7/dc/c42796a518108/page.htm"
+    },
+    {
+      "name": "第二教学楼",
+      "campusName": "张江校区",
+      "buildingType": "教学楼",
+      "description": "总务处公开信息列为张江校区通宵自修教室所在教学楼。",
+      "sourceUrl": "https://zongwuchu.fudan.edu.cn/39412/list.htm"
+    },
+    {
+      "name": "3号科研楼",
+      "campusName": "张江校区",
+      "buildingType": "实验楼",
+      "description": "张江校区总务办事点所在建筑。",
+      "sourceUrl": "https://zongwuchu.fudan.edu.cn/39289/list.htm"
+    },
+    {
+      "name": "张江校区学生食堂",
+      "campusName": "张江校区",
+      "buildingType": "食堂楼",
+      "description": "张江图书馆公开信息列有张江校区食堂二楼自习空间。",
+      "sourceUrl": "https://library.fudan.edu.cn/e7/dc/c42796a518108/page.htm"
+    },
+    {
+      "name": "张江校区体育馆",
+      "campusName": "张江校区",
+      "buildingType": "体育设施",
+      "description": "张江校区综合性体育馆，公开信息列有篮球、羽毛球、乒乓球和健身房等项目。",
+      "sourceUrl": "https://www.fudan.edu.cn/22/list.htm"
+    }
+  ],
+  "locations": [
+    {
+      "name": "光华楼东主楼901",
+      "campusName": "邯郸校区",
+      "buildingName": "光华楼",
+      "facilityType": "办公室",
+      "description": "国际文化交流学院资料室相关地点，可作为小型交流或咨询空间演示数据。",
+      "openTime": "周一至周五 08:00-17:00",
+      "sourceUrl": "https://library.fudan.edu.cn/47/list.htm"
+    },
+    {
+      "name": "光华楼东主楼2609",
+      "campusName": "邯郸校区",
+      "buildingName": "光华楼",
+      "facilityType": "办公室",
+      "description": "航空航天系资料室相关地点，可作为院系咨询空间演示数据。",
+      "openTime": "周一至周五 09:00-17:00",
+      "sourceUrl": "https://library.fudan.edu.cn/47/list.htm"
+    },
+    {
+      "name": "光华楼东辅楼602",
+      "campusName": "邯郸校区",
+      "buildingName": "光华楼",
+      "facilityType": "办公室",
+      "description": "奥地利研究中心资料室相关地点。",
+      "openTime": "周一、周二、周四、周五部分时段开放",
+      "sourceUrl": "https://library.fudan.edu.cn/47/list.htm"
+    },
+    {
+      "name": "参考阅览室411",
+      "campusName": "邯郸校区",
+      "buildingName": "文科图书馆",
+      "facilityType": "图书馆",
+      "description": "文科图书馆参考阅览室，收藏人文、社科类及港台图书。",
+      "openTime": "周一至周日 08:00-22:00",
+      "sourceUrl": "https://library.fudan.edu.cn/e7/cf/c42796a518095/page.htm"
+    },
+    {
+      "name": "文学艺术书库410",
+      "campusName": "邯郸校区",
+      "buildingName": "文科图书馆",
+      "facilityType": "图书馆",
+      "description": "文科图书馆文学艺术类图书开架借阅空间。",
+      "openTime": "周一至周日 08:00-22:00",
+      "sourceUrl": "https://library.fudan.edu.cn/e7/cf/c42796a518095/page.htm"
+    },
+    {
+      "name": "第三教学楼3106",
+      "campusName": "邯郸校区",
+      "buildingName": "第三教学楼",
+      "facilityType": "自习室",
+      "description": "邯郸校区通宵自修教室之一。",
+      "openTime": "每学期第三周起通宵开放，法定节假日暂停",
+      "sourceUrl": "https://zongwuchu.fudan.edu.cn/39412/list.htm"
+    },
+    {
+      "name": "第三教学楼3109",
+      "campusName": "邯郸校区",
+      "buildingName": "第三教学楼",
+      "facilityType": "自习室",
+      "description": "邯郸校区通宵自修教室之一。",
+      "openTime": "每学期第三周起通宵开放，法定节假日暂停",
+      "sourceUrl": "https://zongwuchu.fudan.edu.cn/39412/list.htm"
+    },
+    {
+      "name": "第四教学楼南侧服务窗口",
+      "campusName": "邯郸校区",
+      "buildingName": "第四教学楼",
+      "facilityType": "办公室",
+      "description": "校园生活服务平台总务处一站式业务服务窗口。",
+      "openTime": "每日 08:00-20:00",
+      "sourceUrl": "https://zongwuchu.fudan.edu.cn/39289/list.htm"
+    },
+    {
+      "name": "正大体育馆主场馆",
+      "campusName": "邯郸校区",
+      "buildingName": "正大体育馆",
+      "facilityType": "运动场地",
+      "description": "可用于篮球、排球、羽毛球、文娱演出和大型会议的综合场馆。",
+      "openTime": "06:30-22:30",
+      "sourceUrl": "https://www.fudan.edu.cn/2019/0426/c525a96268/page.htm"
+    },
+    {
+      "name": "人文艺术阅览室B106",
+      "campusName": "江湾校区",
+      "buildingName": "李兆基图书馆",
+      "facilityType": "图书馆",
+      "description": "江湾馆人文艺术阅览室，收藏文学、艺术类图书。",
+      "openTime": "周一至周日 08:00-22:00",
+      "sourceUrl": "https://library.fudan.edu.cn/105/list.htm"
+    },
+    {
+      "name": "文科借阅区B206",
+      "campusName": "江湾校区",
+      "buildingName": "李兆基图书馆",
+      "facilityType": "图书馆",
+      "description": "江湾馆文科借阅区，收藏政治、法律类中外文图书。",
+      "openTime": "周一至周日 08:00-22:00",
+      "sourceUrl": "https://library.fudan.edu.cn/105/list.htm"
+    },
+    {
+      "name": "理科借阅区B304-B306",
+      "campusName": "江湾校区",
+      "buildingName": "李兆基图书馆",
+      "facilityType": "图书馆",
+      "description": "江湾馆理科借阅区，以生物科学、计算机类图书为主。",
+      "openTime": "周一至周日 08:00-22:00",
+      "sourceUrl": "https://library.fudan.edu.cn/105/list.htm"
+    },
+    {
+      "name": "智华楼101",
+      "campusName": "江湾校区",
+      "buildingName": "智华楼",
+      "facilityType": "教室",
+      "description": "江湾校区通宵自修教室之一。",
+      "openTime": "每学期第三周起通宵开放，法定节假日暂停",
+      "sourceUrl": "https://zongwuchu.fudan.edu.cn/39412/list.htm"
+    },
+    {
+      "name": "智华楼102",
+      "campusName": "江湾校区",
+      "buildingName": "智华楼",
+      "facilityType": "教室",
+      "description": "江湾校区通宵自修教室之一。",
+      "openTime": "每学期第三周起通宵开放，法定节假日暂停",
+      "sourceUrl": "https://zongwuchu.fudan.edu.cn/39412/list.htm"
+    },
+    {
+      "name": "廖凯原法学楼南二楼",
+      "campusName": "江湾校区",
+      "buildingName": "廖凯原法学楼",
+      "facilityType": "办公室",
+      "description": "江湾校区管理委员会公开联系方式中的办公地点。",
+      "openTime": "周一至周五 08:30-17:00",
+      "sourceUrl": "https://www.jwb.fudan.edu.cn/"
+    },
+    {
+      "name": "综合体育馆篮球场",
+      "campusName": "江湾校区",
+      "buildingName": "江湾校区综合体育馆",
+      "facilityType": "运动场地",
+      "description": "江湾校区综合体育馆内篮球活动空间。",
+      "openTime": "以场馆预约开放时间为准",
+      "sourceUrl": "https://jijian.fudan.edu.cn/62/b9/c6525a418489/page.htm"
+    },
+    {
+      "name": "综合体育馆羽毛球场",
+      "campusName": "江湾校区",
+      "buildingName": "江湾校区综合体育馆",
+      "facilityType": "运动场地",
+      "description": "江湾校区综合体育馆内羽毛球活动空间。",
+      "openTime": "以场馆预约开放时间为准",
+      "sourceUrl": "https://www.fudan.edu.cn/22/list.htm"
+    },
+    {
+      "name": "江湾运动场田径区",
+      "campusName": "江湾校区",
+      "buildingName": "江湾校区运动场",
+      "facilityType": "运动场地",
+      "description": "江湾校区室外运动场，含塑胶跑道和热身区域。",
+      "openTime": "07:00-22:00",
+      "sourceUrl": "https://www.fudan.edu.cn/2019/0426/c525a96269/page.htm"
+    },
+    {
+      "name": "24h无人值守图书馆B1",
+      "campusName": "枫林校区",
+      "buildingName": "医科图书馆",
+      "facilityType": "图书馆",
+      "description": "医科馆B1楼24小时无人值守图书馆。",
+      "openTime": "24小时",
+      "sourceUrl": "https://library.fudan.edu.cn/105/list.htm"
+    },
+    {
+      "name": "医科馆中文图书区3楼",
+      "campusName": "枫林校区",
+      "buildingName": "医科图书馆",
+      "facilityType": "图书馆",
+      "description": "医科馆中文图书区，收藏生物医学及其他学科中文图书。",
+      "openTime": "周一至周日 08:00-22:00",
+      "sourceUrl": "https://library.fudan.edu.cn/105/list.htm"
+    },
+    {
+      "name": "医科馆外文图书区4楼",
+      "campusName": "枫林校区",
+      "buildingName": "医科图书馆",
+      "facilityType": "图书馆",
+      "description": "医科馆外文图书区，以生物医学外文图书为主。",
+      "openTime": "周一至周日 08:00-22:00",
+      "sourceUrl": "https://library.fudan.edu.cn/105/list.htm"
+    },
+    {
+      "name": "第二教学楼2201",
+      "campusName": "枫林校区",
+      "buildingName": "第二教学楼",
+      "facilityType": "教室",
+      "description": "枫林校区通宵自修教室之一。",
+      "openTime": "每学期第三周起通宵开放，法定节假日暂停",
+      "sourceUrl": "https://zongwuchu.fudan.edu.cn/39412/list.htm"
+    },
+    {
+      "name": "第二教学楼2202",
+      "campusName": "枫林校区",
+      "buildingName": "第二教学楼",
+      "facilityType": "教室",
+      "description": "枫林校区通宵自修教室之一。",
+      "openTime": "每学期第三周起通宵开放，法定节假日暂停",
+      "sourceUrl": "https://zongwuchu.fudan.edu.cn/39412/list.htm"
+    },
+    {
+      "name": "东三号楼西侧服务窗口",
+      "campusName": "枫林校区",
+      "buildingName": "东三号楼",
+      "facilityType": "办公室",
+      "description": "校园生活服务平台总务处一站式业务服务窗口。",
+      "openTime": "每日 08:00-20:00",
+      "sourceUrl": "https://zongwuchu.fudan.edu.cn/39289/list.htm"
+    },
+    {
+      "name": "综合游泳馆室内泳池",
+      "campusName": "枫林校区",
+      "buildingName": "枫林综合游泳馆",
+      "facilityType": "运动场地",
+      "description": "枫林综合游泳馆室内游泳池。",
+      "openTime": "以场馆开放通知为准",
+      "sourceUrl": "https://www.fudan.edu.cn/22/list.htm"
+    },
+    {
+      "name": "综合游泳馆篮球馆",
+      "campusName": "枫林校区",
+      "buildingName": "枫林综合游泳馆",
+      "facilityType": "运动场地",
+      "description": "枫林综合游泳馆内篮球活动空间。",
+      "openTime": "以场馆开放通知为准",
+      "sourceUrl": "https://www.fudan.edu.cn/22/list.htm"
+    },
+    {
+      "name": "计算机楼101阶梯教室",
+      "campusName": "张江校区",
+      "buildingName": "计算机楼",
+      "facilityType": "图书馆",
+      "description": "张江图书馆读者服务中心所在空间。",
+      "openTime": "周一至周日 08:00-22:00",
+      "sourceUrl": "https://library.fudan.edu.cn/e7/dc/c42796a518108/page.htm"
+    },
+    {
+      "name": "第二教学楼2304",
+      "campusName": "张江校区",
+      "buildingName": "第二教学楼",
+      "facilityType": "教室",
+      "description": "张江校区通宵自修教室之一。",
+      "openTime": "每学期第三周起通宵开放，法定节假日暂停",
+      "sourceUrl": "https://zongwuchu.fudan.edu.cn/39412/list.htm"
+    },
+    {
+      "name": "第二教学楼2306",
+      "campusName": "张江校区",
+      "buildingName": "第二教学楼",
+      "facilityType": "教室",
+      "description": "张江校区通宵自修教室之一。",
+      "openTime": "每学期第三周起通宵开放，法定节假日暂停",
+      "sourceUrl": "https://zongwuchu.fudan.edu.cn/39412/list.htm"
+    },
+    {
+      "name": "3号科研楼317",
+      "campusName": "张江校区",
+      "buildingName": "3号科研楼",
+      "facilityType": "办公室",
+      "description": "张江校区总务办事点。",
+      "openTime": "周一至周五 08:00-11:30 13:30-17:00",
+      "sourceUrl": "https://zongwuchu.fudan.edu.cn/39289/list.htm"
+    },
+    {
+      "name": "食堂二楼自习空间",
+      "campusName": "张江校区",
+      "buildingName": "张江校区学生食堂",
+      "facilityType": "自习室",
+      "description": "张江馆公开信息列出的张江校区食堂二楼自习空间。",
+      "openTime": "周一至周日 08:00-22:00，考试周适当延长",
+      "sourceUrl": "https://library.fudan.edu.cn/e7/dc/c42796a518108/page.htm"
+    },
+    {
+      "name": "体育馆篮球场",
+      "campusName": "张江校区",
+      "buildingName": "张江校区体育馆",
+      "facilityType": "运动场地",
+      "description": "张江校区体育馆篮球活动空间。",
+      "openTime": "以场馆预约开放时间为准",
+      "sourceUrl": "https://www.fudan.edu.cn/22/list.htm"
+    },
+    {
+      "name": "体育馆羽毛球场",
+      "campusName": "张江校区",
+      "buildingName": "张江校区体育馆",
+      "facilityType": "运动场地",
+      "description": "张江校区体育馆羽毛球活动空间。",
+      "openTime": "以场馆预约开放时间为准",
+      "sourceUrl": "https://www.fudan.edu.cn/22/list.htm"
+    }
+  ],
+  "events": [
+    {
+      "name": "数据库系统项目展示会",
+      "eventType": "论坛",
+      "startTime": "2026-09-18 14:00:00",
+      "endTime": "2026-09-18 16:30:00",
+      "campusName": "邯郸校区",
+      "buildingName": "光华楼",
+      "locationName": "光华楼东主楼901",
+      "hostDepartmentName": "计算机科学技术学院",
+      "description": "围绕课程项目展示、关系数据库设计和校园问答系统实践进行交流。"
+    },
+    {
+      "name": "图书馆数字资源检索工作坊",
+      "eventType": "讲座",
+      "startTime": "2026-09-22 19:00:00",
+      "endTime": "2026-09-22 20:30:00",
+      "campusName": "邯郸校区",
+      "buildingName": "文科图书馆",
+      "locationName": "参考阅览室411",
+      "hostDepartmentName": "学生事务中心",
+      "description": "面向新生介绍图书馆目录、数据库检索和文献传递服务。"
+    },
+    {
+      "name": "校园服务志愿者培训",
+      "eventType": "志愿服务",
+      "startTime": "2026-09-25 13:30:00",
+      "endTime": "2026-09-25 15:00:00",
+      "campusName": "邯郸校区",
+      "buildingName": "第四教学楼",
+      "locationName": "第四教学楼南侧服务窗口",
+      "hostDepartmentName": "学生事务中心",
+      "description": "讲解校园服务窗口导引、失物咨询和跨校区事务协助流程。"
+    },
+    {
+      "name": "正大体育馆新生杯篮球赛",
+      "eventType": "体育赛事",
+      "startTime": "2026-10-10 18:30:00",
+      "endTime": "2026-10-10 20:30:00",
+      "campusName": "邯郸校区",
+      "buildingName": "正大体育馆",
+      "locationName": "正大体育馆主场馆",
+      "hostDepartmentName": "学生事务中心",
+      "description": "面向各院系新生队伍的校园篮球交流赛。"
+    },
+    {
+      "name": "江湾交叉学科AI学术沙龙",
+      "eventType": "学术交流",
+      "startTime": "2026-10-14 15:00:00",
+      "endTime": "2026-10-14 17:00:00",
+      "campusName": "江湾校区",
+      "buildingName": "智华楼",
+      "locationName": "智华楼101",
+      "hostDepartmentName": "计算机科学技术学院",
+      "description": "讨论人工智能在生命科学、材料科学和法学研究中的交叉应用。"
+    },
+    {
+      "name": "法学与社会治理论坛",
+      "eventType": "论坛",
+      "startTime": "2026-10-21 14:00:00",
+      "endTime": "2026-10-21 16:00:00",
+      "campusName": "江湾校区",
+      "buildingName": "廖凯原法学楼",
+      "locationName": "廖凯原法学楼南二楼",
+      "hostDepartmentName": "学生事务中心",
+      "description": "围绕校园治理、公共服务和学生权益议题开展圆桌讨论。"
+    },
+    {
+      "name": "李兆基图书馆研究方法工作坊",
+      "eventType": "讲座",
+      "startTime": "2026-10-27 19:00:00",
+      "endTime": "2026-10-27 20:30:00",
+      "campusName": "江湾校区",
+      "buildingName": "李兆基图书馆",
+      "locationName": "文科借阅区B206",
+      "hostDepartmentName": "学生事务中心",
+      "description": "介绍政治法律类文献检索、论文选题和资料管理方法。"
+    },
+    {
+      "name": "江湾体育馆羽毛球公开课",
+      "eventType": "体育赛事",
+      "startTime": "2026-11-01 10:00:00",
+      "endTime": "2026-11-01 12:00:00",
+      "campusName": "江湾校区",
+      "buildingName": "江湾校区综合体育馆",
+      "locationName": "综合体育馆羽毛球场",
+      "hostDepartmentName": "学生事务中心",
+      "description": "面向零基础同学的羽毛球体验课和分组练习。"
+    },
+    {
+      "name": "江湾夜跑与健康打卡",
+      "eventType": "体育赛事",
+      "startTime": "2026-11-06 19:00:00",
+      "endTime": "2026-11-06 20:30:00",
+      "campusName": "江湾校区",
+      "buildingName": "江湾校区运动场",
+      "locationName": "江湾运动场田径区",
+      "hostDepartmentName": "学生事务中心",
+      "description": "围绕运动场开展夜跑、拉伸和健康打卡活动。"
+    },
+    {
+      "name": "枫林医学人文讲座",
+      "eventType": "讲座",
+      "startTime": "2026-11-12 18:30:00",
+      "endTime": "2026-11-12 20:00:00",
+      "campusName": "枫林校区",
+      "buildingName": "医科图书馆",
+      "locationName": "医科馆中文图书区3楼",
+      "hostDepartmentName": "学生事务中心",
+      "description": "结合医学阅读材料讨论医患沟通、叙事医学和职业伦理。"
+    },
+    {
+      "name": "公共卫生数据论坛",
+      "eventType": "论坛",
+      "startTime": "2026-11-18 14:00:00",
+      "endTime": "2026-11-18 16:00:00",
+      "campusName": "枫林校区",
+      "buildingName": "第二教学楼",
+      "locationName": "第二教学楼2201",
+      "hostDepartmentName": "计算机科学技术学院",
+      "description": "面向医学与计算交叉方向，交流公共卫生数据治理与可视化实践。"
+    },
+    {
+      "name": "枫林游泳安全培训",
+      "eventType": "志愿服务",
+      "startTime": "2026-11-21 09:30:00",
+      "endTime": "2026-11-21 11:00:00",
+      "campusName": "枫林校区",
+      "buildingName": "枫林综合游泳馆",
+      "locationName": "综合游泳馆室内泳池",
+      "hostDepartmentName": "学生事务中心",
+      "description": "开展游泳安全、场馆秩序和应急互助培训。"
+    },
+    {
+      "name": "张江创新药学术交流会",
+      "eventType": "学术交流",
+      "startTime": "2026-11-26 15:00:00",
+      "endTime": "2026-11-26 17:00:00",
+      "campusName": "张江校区",
+      "buildingName": "计算机楼",
+      "locationName": "计算机楼101阶梯教室",
+      "hostDepartmentName": "计算机科学技术学院",
+      "description": "围绕新药研发中的数据平台、知识图谱和智能检索进行交流。"
+    },
+    {
+      "name": "微电子行业招聘宣讲会",
+      "eventType": "招聘宣讲",
+      "startTime": "2026-12-02 18:30:00",
+      "endTime": "2026-12-02 20:30:00",
+      "campusName": "张江校区",
+      "buildingName": "第二教学楼",
+      "locationName": "第二教学楼2304",
+      "hostDepartmentName": "学生事务中心",
+      "description": "邀请企业介绍芯片设计、EDA、嵌入式系统相关岗位与实习机会。"
+    },
+    {
+      "name": "张江羽毛球交流赛",
+      "eventType": "体育赛事",
+      "startTime": "2026-12-06 14:00:00",
+      "endTime": "2026-12-06 17:00:00",
+      "campusName": "张江校区",
+      "buildingName": "张江校区体育馆",
+      "locationName": "体育馆羽毛球场",
+      "hostDepartmentName": "学生事务中心",
+      "description": "面向张江校区师生的双打交流赛。"
+    },
+    {
+      "name": "跨校区图书馆使用导览",
+      "eventType": "志愿服务",
+      "startTime": "2026-12-09 19:00:00",
+      "endTime": "2026-12-09 20:00:00",
+      "campusName": "张江校区",
+      "buildingName": "张江校区学生食堂",
+      "locationName": "食堂二楼自习空间",
+      "hostDepartmentName": "学生事务中心",
+      "description": "介绍文科馆、江湾馆、医科馆和张江服务点的借阅与自习资源。"
+    }
+  ]
+}
