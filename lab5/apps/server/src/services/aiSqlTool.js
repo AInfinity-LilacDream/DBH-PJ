@@ -460,6 +460,7 @@ function getSqlPrivacyDenial(sql, { user, statementType }) {
       aliasesToRestrict.length > 0 &&
       !areAliasesRestrictedToCurrentPerson(normalizedSql, aliasesToRestrict, "people_id", user?.peopleId)
     ) {
+      console.log("该 SQL 可能泄露其他人的手机号或邮箱，已拒绝执行。");
       return createPrivacyDenial("该 SQL 可能泄露其他人的手机号或邮箱，已拒绝执行。");
     }
   }

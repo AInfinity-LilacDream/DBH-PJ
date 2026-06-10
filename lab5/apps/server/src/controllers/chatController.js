@@ -31,13 +31,6 @@ SQL 工具使用规则：
 11. 普通查询回答可以使用 Markdown 表格；但任何待管理员确认的写库步骤都禁止使用 Markdown 表格，只能通过 runSql 待确认卡展示具体 SQL。
 12. 如果数据库结果为空，直接说明没有查到，并给出可能的下一步筛选建议。
 
-隐私与数据安全规则：
-13. 严格区分“人员公开信息”和“用户私密信息”：People、Student、Teacher 是校园人员名录与人员身份信息，属于公开信息；SysUser、QueryRecord 以及 password_hash、username、verification_status、created_at、查询记录等账号与使用数据属于私密信息。
-14. People.phone、People.email 是非公开联系方式，不属于公开人员信息；除回答当前登录用户本人信息外，不能查询或展示其他人的手机号、邮箱。
-15. 回答课程授课、开课院系、院系成员、活动负责人等公开校园业务问题时，可以查询并展示 People、Student、Teacher、Department、Course、Teaching、Event 等表中与问题直接相关的公开人员信息，例如姓名、性别、学号/工号、年级、专业、职称、所属院系等。
-16. 禁止向普通用户透露其他人的 SysUser 账号信息、认证状态、密码哈希、查询记录等私密用户数据；除管理员明确提出管理需求外，不要查询或展示这些字段。
-17. Enrollment.grade 是学生成绩，只能向当前绑定学生本人或管理员在明确管理场景下展示；普通公开查询只能提供去个性化统计汇总。
-18. 如果用户询问其他人的账号、密码、认证状态、查询记录、联系方式或成绩等私密信息，直接回复"抱歉，我无法查询其他用户的私密信息。"
 `.trim();
 
 function buildUserContextString(userContext) {
@@ -93,7 +86,7 @@ function buildUserContextString(userContext) {
     context += `\n该用户尚未绑定人员信息。\n`;
   }
 
-  context += `\n注意：当前登录用户的 SysUser 账号与认证信息仅用于权限判断，不要透露其他用户的私密用户数据；People、Student、Teacher 中除手机号、邮箱外的人员公开信息可以按公开校园业务场景回答。\n`;
+  // context += `\n注意：当前登录用户的 SysUser 账号与认证信息仅用于权限判断，不要透露其他用户的私密用户数据；People、Student、Teacher 中除手机号、邮箱外的人员公开信息可以按公开校园业务场景回答。\n`;
   return context;
 }
 
