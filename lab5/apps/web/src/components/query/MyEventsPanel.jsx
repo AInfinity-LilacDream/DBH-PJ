@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Button, Input, Pagination, Select, SelectItem } from "@heroui/react";
+import { Autocomplete, AutocompleteItem, Button, Input, Pagination } from "@heroui/react";
 import { DateRangePicker } from "@heroui/date-picker";
 import { parseDate } from "@internationalized/date";
 import { addToast } from "@heroui/toast";
@@ -11,6 +11,7 @@ import { cleanInputClassNames } from "../../styles/inputClassNames.js";
 const emptyOptionKey = "__all__";
 const pageSize = 12;
 const initialPagination = { page: 1, pageSize, total: 0, pages: 1 };
+const showRemoteOption = () => true;
 
 const filterConfig = [
   { key: "hostDepId", label: "举办院系", optionKey: "departments" },
@@ -36,11 +37,6 @@ function createEmptyFilters() {
     values[field.key] = "";
     return values;
   }, {});
-}
-
-function getSelectionValue(keys) {
-  const value = Array.from(keys)[0] ?? "";
-  return value === emptyOptionKey ? "" : value;
 }
 
 function getDependentKeys(changedKey) {
@@ -71,6 +67,16 @@ function getOptionParams(field, filters) {
   );
 }
 
+function createEmptyOptionSearch() {
+  return filterConfig.reduce((values, field) => {
+    if (field.optionKey) {
+      values[field.key] = "";
+    }
+
+    return values;
+  }, {});
+}
+
 function toDatePickerValue(value) {
   if (!value) {
     return null;
@@ -98,6 +104,7 @@ export function MyEventsPanel({ user, activeItem, onEnterAccount }) {
   const [items, setItems] = useState([]);
   const [keyword, setKeyword] = useState("");
   const [filters, setFilters] = useState(createEmptyFilters);
+  const [optionSearch, setOptionSearch] = useState(createEmptyOptionSearch);
   const [optionMap, setOptionMap] = useState({});
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState(initialPagination);
@@ -120,7 +127,26 @@ export function MyEventsPanel({ user, activeItem, onEnterAccount }) {
     });
 
     setFilters(nextFilters);
+    setOptionSearch((current) => {
+      const nextSearch = { ...current };
+      const selectedOption = (optionMap[key] ?? []).find((option) => String(option.value) === String(value));
+
+      nextSearch[key] = value ? selectedOption?.label ?? "" : "";
+      getDependentKeys(key).forEach((dependentKey) => {
+        nextSearch[dependentKey] = "";
+      });
+
+      return nextSearch;
+    });
     setPage(1);
+  }
+
+  function updateOptionSearch(key, value) {
+    setOptionSearch((current) => ({ ...current, [key]: value }));
+
+    if (!value && filters[key]) {
+      updateFilter(key, "");
+    }
   }
 
   function updateDateRange(field, value) {
@@ -180,7 +206,10 @@ export function MyEventsPanel({ user, activeItem, onEnterAccount }) {
       try {
         const entries = await Promise.all(
           optionFields.map(async (field) => {
-            const result = await listCatalogOptions(field.optionKey, getOptionParams(field, filters));
+            const result = await listCatalogOptions(field.optionKey, {
+              ...getOptionParams(field, filters),
+              keyword: optionSearch[field.key] ?? ""
+            });
             return [field.key, result.data ?? []];
           })
         );
@@ -205,7 +234,7 @@ export function MyEventsPanel({ user, activeItem, onEnterAccount }) {
     return () => {
       isCurrent = false;
     };
-  }, [filters, user?.peopleId]);
+  }, [filters, optionSearch, user?.peopleId]);
 
   async function handleUnregister(eventId) {
     await unregisterFromEvent(user.userId, eventId);
@@ -255,21 +284,30 @@ export function MyEventsPanel({ user, activeItem, onEnterAccount }) {
                     onChange={(value) => updateDateRange(field, value)}
                   />
                 ) : (
-                  <Select
+                  <Autocomplete
                     key={field.key}
                     className="w-full sm:w-44"
+                    allowsCustomValue
+                    defaultItems={[
+                      { value: emptyOptionKey, label: "全部" },
+                      ...(optionMap[field.key] ?? [])
+                    ]}
+                    defaultFilter={showRemoteOption}
+                    isClearable={false}
                     isLoading={isLoadingOptions && !optionMap[field.key]?.length}
                     label={field.label}
+                    menuTrigger="input"
                     radius="sm"
-                    selectedKeys={[filters[field.key] ? String(filters[field.key]) : emptyOptionKey]}
+                    inputValue={optionSearch[field.key] ?? ""}
+                    selectedKey={filters[field.key] ? String(filters[field.key]) : emptyOptionKey}
                     variant="bordered"
-                    onSelectionChange={(keys) => updateFilter(field.key, getSelectionValue(keys))}
+                    onInputChange={(value) => updateOptionSearch(field.key, value)}
+                    onSelectionChange={(key) => updateFilter(field.key, key === emptyOptionKey ? "" : key)}
                   >
-                    <SelectItem key={emptyOptionKey}>全部</SelectItem>
-                    {(optionMap[field.key] ?? []).map((option) => (
-                      <SelectItem key={option.value}>{option.label}</SelectItem>
-                    ))}
-                  </Select>
+                    {(option) => (
+                      <AutocompleteItem key={option.value}>{option.label}</AutocompleteItem>
+                    )}
+                  </Autocomplete>
                 )
               )}
 
@@ -277,16 +315,11 @@ export function MyEventsPanel({ user, activeItem, onEnterAccount }) {
                 className="min-w-72 flex-1"
                 aria-label={`${activeItem.label}名称搜索`}
                 classNames={cleanInputClassNames}
-                isClearable
                 label="名称搜索"
                 placeholder="输入名称关键词"
                 radius="sm"
                 value={keyword}
                 variant="bordered"
-                onClear={() => {
-                  setKeyword("");
-                  setPage(1);
-                }}
                 onValueChange={(value) => {
                   setKeyword(value);
                   setPage(1);

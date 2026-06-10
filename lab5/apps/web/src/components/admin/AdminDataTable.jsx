@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
+  Autocomplete,
+  AutocompleteItem,
   Button,
   Chip,
   Divider,
@@ -25,6 +27,7 @@ import * as fieldOptionsApi from "../../services/admin/fieldOptionsApi.js";
 const emptyFilterKey = "__all__";
 const emptyFilterConfig = [];
 const pageSizeOptions = [10, 20, 50, 100];
+const showRemoteOption = () => true;
 
 const filterConfigs = {
   building: [
@@ -158,6 +161,16 @@ function getOptionParams(field, filters) {
   );
 }
 
+function createEmptyOptionSearch(config) {
+  return config.reduce((values, field) => {
+    if (field.optionKey) {
+      values[field.key] = "";
+    }
+
+    return values;
+  }, {});
+}
+
 function getPageSize(listParams, pagination) {
   return listParams?.pageSize ?? pagination?.pageSize ?? 20;
 }
@@ -175,11 +188,13 @@ export function AdminDataTable({
 }) {
   const filterConfig = filterConfigs[activeModule.key] ?? emptyFilterConfig;
   const [filters, setFilters] = useState(() => createEmptyFilters(filterConfig));
+  const [optionSearch, setOptionSearch] = useState(() => createEmptyOptionSearch(filterConfig));
   const [filterOptionMap, setFilterOptionMap] = useState({});
   const [isLoadingOptions, setIsLoadingOptions] = useState(false);
 
   useEffect(() => {
     setFilters(createEmptyFilters(filterConfig));
+    setOptionSearch(createEmptyOptionSearch(filterConfig));
   }, [activeModule.key]);
 
   useEffect(() => {
@@ -198,7 +213,10 @@ export function AdminDataTable({
       try {
         const entries = await Promise.all(
           optionFields.map(async (field) => {
-            const result = await fieldOptionsApi.list(field.optionKey, getOptionParams(field, filters));
+            const result = await fieldOptionsApi.list(field.optionKey, {
+              ...getOptionParams(field, filters),
+              keyword: optionSearch[field.key] ?? ""
+            });
             return [field.key, result.data ?? []];
           })
         );
@@ -222,7 +240,7 @@ export function AdminDataTable({
     return () => {
       isCurrent = false;
     };
-  }, [activeModule.key, filterConfig, filters]);
+  }, [activeModule.key, filterConfig, filters, optionSearch]);
 
   function queryWithFilters(nextFilters, nextParams = {}) {
     onQueryChange?.({
@@ -240,7 +258,26 @@ export function AdminDataTable({
     });
 
     setFilters(nextFilters);
+    setOptionSearch((current) => {
+      const nextSearch = { ...current };
+      const selectedOption = (filterOptionMap[key] ?? []).find((option) => String(option.value) === String(value));
+
+      nextSearch[key] = value ? selectedOption?.label ?? "" : "";
+      getDependentKeys(key, filterConfig).forEach((dependentKey) => {
+        nextSearch[dependentKey] = "";
+      });
+
+      return nextSearch;
+    });
     queryWithFilters(nextFilters);
+  }
+
+  function updateOptionSearch(key, value) {
+    setOptionSearch((current) => ({ ...current, [key]: value }));
+
+    if (!value && filters[key]) {
+      updateFilter(key, "");
+    }
   }
 
   function updateDateRange(field, value) {
@@ -289,33 +326,40 @@ export function AdminDataTable({
                 onChange={(value) => updateDateRange(field, value)}
               />
             ) : field.type === "select" || field.type === "multiValueSelect" ? (
-              <Select
+              <Autocomplete
                 key={field.key}
                 className="w-full sm:w-44"
+                allowsCustomValue
+                defaultItems={[
+                  { value: emptyFilterKey, label: "全部" },
+                  ...(filterOptionMap[field.key] ?? [])
+                ]}
+                defaultFilter={showRemoteOption}
+                isClearable={false}
                 isLoading={isLoadingOptions && !filterOptionMap[field.key]?.length}
                 label={field.label}
+                menuTrigger="input"
                 radius="sm"
-                selectedKeys={[filters[field.key] ? String(filters[field.key]) : emptyFilterKey]}
+                inputValue={optionSearch[field.key] ?? ""}
+                selectedKey={filters[field.key] ? String(filters[field.key]) : emptyFilterKey}
                 variant="bordered"
-                onSelectionChange={(keys) => updateFilter(field.key, getSelectionValue(keys))}
+                onInputChange={(value) => updateOptionSearch(field.key, value)}
+                onSelectionChange={(key) => updateFilter(field.key, key === emptyFilterKey ? "" : key)}
               >
-                <SelectItem key={emptyFilterKey}>全部</SelectItem>
-                {(filterOptionMap[field.key] ?? []).map((option) => (
-                  <SelectItem key={option.value}>{option.label}</SelectItem>
-                ))}
-              </Select>
+                {(option) => (
+                  <AutocompleteItem key={option.value}>{option.label}</AutocompleteItem>
+                )}
+              </Autocomplete>
             ) : (
               <Input
                 key={field.key}
                 className="w-full sm:w-44"
                 aria-label={`${field.label}筛选`}
                 classNames={cleanInputClassNames}
-                isClearable
                 label={field.label}
                 radius="sm"
                 value={filters[field.key] ?? ""}
                 variant="bordered"
-                onClear={() => updateFilter(field.key, "")}
                 onValueChange={(value) => updateFilter(field.key, value)}
               />
             )

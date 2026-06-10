@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Input, Pagination, Select, SelectItem } from "@heroui/react";
+import { Autocomplete, AutocompleteItem, Input, Pagination } from "@heroui/react";
 import { DateRangePicker } from "@heroui/date-picker";
 import { parseDate } from "@internationalized/date";
 import { addToast } from "@heroui/toast";
@@ -13,6 +13,7 @@ import { cleanInputClassNames } from "../../styles/inputClassNames.js";
 const emptyOptionKey = "__all__";
 const queryPageSize = 12;
 const initialPagination = { page: 1, pageSize: queryPageSize, total: 0, pages: 1 };
+const showRemoteOption = () => true;
 
 const filterConfigs = {
   "location-query": [
@@ -56,11 +57,6 @@ const filterConfigs = {
   ]
 };
 
-function getSelectionValue(keys) {
-  const value = Array.from(keys)[0] ?? "";
-  return value === emptyOptionKey ? "" : value;
-}
-
 function createEmptyFilters(config) {
   return config.reduce((values, field) => {
     if (field.type === "dateRange") {
@@ -70,6 +66,16 @@ function createEmptyFilters(config) {
     }
 
     values[field.key] = "";
+    return values;
+  }, {});
+}
+
+function createEmptyOptionSearch(config) {
+  return config.reduce((values, field) => {
+    if (field.optionKey) {
+      values[field.key] = "";
+    }
+
     return values;
   }, {});
 }
@@ -139,6 +145,7 @@ export function QueryContentPanel({
   const [keyword, setKeyword] = useState("");
   const activeFilterConfig = useMemo(() => filterConfigs[activeItem.key] ?? [], [activeItem.key]);
   const [filters, setFilters] = useState(() => createEmptyFilters(activeFilterConfig));
+  const [optionSearch, setOptionSearch] = useState(() => createEmptyOptionSearch(activeFilterConfig));
   const [optionMap, setOptionMap] = useState({});
   const [items, setItems] = useState([]);
   const [page, setPage] = useState(1);
@@ -163,7 +170,26 @@ export function QueryContentPanel({
     });
 
     setFilters(nextFilters);
+    setOptionSearch((current) => {
+      const nextSearch = { ...current };
+      const selectedOption = (optionMap[key] ?? []).find((option) => String(option.value) === String(value));
+
+      nextSearch[key] = value ? selectedOption?.label ?? "" : "";
+      getDependentKeys(key, activeFilterConfig).forEach((dependentKey) => {
+        nextSearch[dependentKey] = "";
+      });
+
+      return nextSearch;
+    });
     setPage(1);
+  }
+
+  function updateOptionSearch(key, value) {
+    setOptionSearch((current) => ({ ...current, [key]: value }));
+
+    if (!value && filters[key]) {
+      updateFilter(key, "");
+    }
   }
 
   function updateDateRange(field, value) {
@@ -204,6 +230,7 @@ export function QueryContentPanel({
   useEffect(() => {
     setKeyword("");
     setFilters(createEmptyFilters(activeFilterConfig));
+    setOptionSearch(createEmptyOptionSearch(activeFilterConfig));
     setPage(1);
     setPagination(initialPagination);
   }, [activeFilterConfig]);
@@ -223,7 +250,10 @@ export function QueryContentPanel({
       try {
         const entries = await Promise.all(
           optionFields.map(async (field) => {
-            const result = await listCatalogOptions(field.optionKey, getOptionParams(field, filters));
+            const result = await listCatalogOptions(field.optionKey, {
+              ...getOptionParams(field, filters),
+              keyword: optionSearch[field.key] ?? ""
+            });
             return [field.key, result.data ?? []];
           })
         );
@@ -248,7 +278,7 @@ export function QueryContentPanel({
     return () => {
       isCurrent = false;
     };
-  }, [activeFilterConfig, filters]);
+  }, [activeFilterConfig, filters, optionSearch]);
 
   useEffect(() => {
     if (activeItem.key === "new-chat") {
@@ -338,21 +368,30 @@ export function QueryContentPanel({
                     onChange={(value) => updateDateRange(field, value)}
                   />
                 ) : (
-                  <Select
+                  <Autocomplete
                     key={field.key}
                     className="w-full sm:w-44"
+                    allowsCustomValue
+                    defaultItems={[
+                      { value: emptyOptionKey, label: "全部" },
+                      ...(optionMap[field.key] ?? [])
+                    ]}
+                    defaultFilter={showRemoteOption}
+                    isClearable={false}
                     isLoading={isLoadingOptions && !optionMap[field.key]?.length}
                     label={field.label}
+                    menuTrigger="input"
                     radius="sm"
-                    selectedKeys={[filters[field.key] ? String(filters[field.key]) : emptyOptionKey]}
+                    inputValue={optionSearch[field.key] ?? ""}
+                    selectedKey={filters[field.key] ? String(filters[field.key]) : emptyOptionKey}
                     variant="bordered"
-                    onSelectionChange={(keys) => updateFilter(field.key, getSelectionValue(keys))}
+                    onInputChange={(value) => updateOptionSearch(field.key, value)}
+                    onSelectionChange={(key) => updateFilter(field.key, key === emptyOptionKey ? "" : key)}
                   >
-                    <SelectItem key={emptyOptionKey}>全部</SelectItem>
-                    {(optionMap[field.key] ?? []).map((option) => (
-                      <SelectItem key={option.value}>{option.label}</SelectItem>
-                    ))}
-                  </Select>
+                    {(option) => (
+                      <AutocompleteItem key={option.value}>{option.label}</AutocompleteItem>
+                    )}
+                  </Autocomplete>
                 )
               )}
 
@@ -360,16 +399,11 @@ export function QueryContentPanel({
                 className="min-w-72 flex-1"
                 aria-label={`${activeItem.label}名称搜索`}
                 classNames={cleanInputClassNames}
-                isClearable
                 label="名称搜索"
                 placeholder="输入名称关键词"
                 radius="sm"
                 value={keyword}
                 variant="bordered"
-                onClear={() => {
-                  setKeyword("");
-                  setPage(1);
-                }}
                 onValueChange={(value) => {
                   setKeyword(value);
                   setPage(1);
