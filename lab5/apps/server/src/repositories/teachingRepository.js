@@ -1,9 +1,26 @@
 import { query } from "../db/pool.js";
 import { decodeCompositeKey, encodeCompositeKey } from "../utils/compositeKey.js";
 import { ensureAffected, requireNumber, requireText } from "../utils/payload.js";
+import { queryPage } from "../utils/pagination.js";
 
-export async function listAll() {
-  const result = await query(`
+function addFilter(filters, params, value, sql) {
+  if (!value) {
+    return;
+  }
+
+  params.push(value);
+  filters.push(sql(params.length));
+}
+
+export async function listAll(filters = {}, pagination) {
+  const params = [];
+  const whereFilters = [];
+
+  addFilter(whereFilters, params, filters.teacherId, (index) => `te.teacher_id = $${index}`);
+  addFilter(whereFilters, params, filters.courseId, (index) => `te.course_id = $${index}`);
+
+  const whereClause = whereFilters.length ? `WHERE ${whereFilters.join(" AND ")}` : "";
+  const selectSql = `
     SELECT
       te.teacher_id AS "teacherId",
       p.name AS "teacherName",
@@ -15,9 +32,19 @@ export async function listAll() {
     JOIN teacher tr ON tr.people_id = te.teacher_id
     JOIN people p ON p.people_id = tr.people_id
     JOIN course c ON c.course_id = te.course_id
-    ORDER BY te.semester DESC, p.name, c.course_name
-  `);
+    ${whereClause}
+  `;
 
+  if (pagination) {
+    return queryPage(query, {
+      selectSql,
+      params,
+      orderBy: 'semester DESC, "teacherName", "courseName"',
+      pagination
+    });
+  }
+
+  const result = await query(`${selectSql} ORDER BY te.semester DESC, p.name, c.course_name`, params);
   return result.rows;
 }
 

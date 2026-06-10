@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Button, Chip, Input, Spinner } from "@heroui/react";
+import { Button, Chip, Input, Pagination, Spinner } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { getAdminChatSessionDetail, listAdminChatSessions } from "../../services/chatSessions.js";
 import { cleanInputClassNames } from "../../styles/inputClassNames.js";
@@ -10,6 +10,9 @@ const roleLabelMap = {
   tool: "工具",
   system: "系统"
 };
+
+const pageSize = 20;
+const initialPagination = { page: 1, pageSize, total: 0, pages: 1 };
 
 function formatDateTime(value) {
   if (!value) {
@@ -43,6 +46,8 @@ function parseQueryResult(value) {
 
 export function AdminChatSessionPanel() {
   const [keyword, setKeyword] = useState("");
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState(initialPagination);
   const [sessions, setSessions] = useState([]);
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [detail, setDetail] = useState(null);
@@ -63,20 +68,22 @@ export function AdminChatSessionPanel() {
     return map;
   }, [detail]);
 
-  async function loadSessions(nextKeyword = keyword, shouldSelectFirst = false) {
+  async function loadSessions(nextKeyword = keyword, nextPage = page, shouldSelectFirst = false) {
     setIsLoadingList(true);
     setMessage("");
 
     try {
-      const result = await listAdminChatSessions(nextKeyword);
+      const result = await listAdminChatSessions({ keyword: nextKeyword, page: nextPage, pageSize });
       const rows = result.data ?? [];
       setSessions(rows);
+      setPagination(result.pagination ?? { page: nextPage, pageSize, total: rows.length, pages: 1 });
 
       if (rows[0]?.id && (shouldSelectFirst || !rows.some((row) => row.id === activeSessionId))) {
         setActiveSessionId(rows[0].id);
       }
     } catch (error) {
       setSessions([]);
+      setPagination({ page: nextPage, pageSize, total: 0, pages: 1 });
       setMessage(error.message);
     } finally {
       setIsLoadingList(false);
@@ -84,8 +91,8 @@ export function AdminChatSessionPanel() {
   }
 
   useEffect(() => {
-    loadSessions("");
-  }, []);
+    loadSessions(keyword, page);
+  }, [page]);
 
   useEffect(() => {
     if (!activeSessionId) {
@@ -126,7 +133,13 @@ export function AdminChatSessionPanel() {
   function handleSearchSubmit(event) {
     event.preventDefault();
     setDetail(null);
-    loadSessions(keyword, true);
+
+    if (page === 1) {
+      loadSessions(keyword, 1, true);
+      return;
+    }
+
+    setPage(1);
   }
 
   return (
@@ -147,7 +160,13 @@ export function AdminChatSessionPanel() {
               onClear={() => {
                 setKeyword("");
                 setDetail(null);
-                loadSessions("", true);
+
+                if (page === 1) {
+                  loadSessions("", 1, true);
+                  return;
+                }
+
+                setPage(1);
               }}
               onValueChange={setKeyword}
             />
@@ -194,6 +213,19 @@ export function AdminChatSessionPanel() {
             })}
           </div>
         </div>
+        {pagination.total > 0 ? (
+          <div className="border-t border-slate-200 px-3 py-3">
+            <Pagination
+              showControls
+              isDisabled={isLoadingList}
+              page={pagination.page}
+              radius="sm"
+              size="sm"
+              total={Math.max(1, pagination.pages)}
+              onChange={setPage}
+            />
+          </div>
+        ) : null}
       </aside>
 
       <section className="flex min-h-0 flex-col rounded-lg border border-slate-200 bg-white shadow-sm">

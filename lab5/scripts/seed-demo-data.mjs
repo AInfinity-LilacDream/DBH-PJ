@@ -351,6 +351,7 @@ async function seed() {
 
     const participationRows = [
       [people.demo_student_01.people_id, forum.event_id],
+      [people.demo_student_01.people_id, basketball.event_id],
       [people.demo_teacher_01.people_id, forum.event_id],
       [people.demo_student_02.people_id, basketball.event_id]
     ];

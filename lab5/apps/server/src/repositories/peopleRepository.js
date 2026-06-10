@@ -1,9 +1,27 @@
 import { query, withTransaction } from "../db/pool.js";
 import { ensureAffected, optionalText, requireNumber, requireText } from "../utils/payload.js";
 import { HttpError } from "../utils/httpError.js";
+import { queryPage } from "../utils/pagination.js";
 
-export async function listAll() {
-  const result = await query(`
+function addTextFilter(filters, params, value, column) {
+  const keyword = typeof value === "string" ? value.trim() : "";
+  if (!keyword) {
+    return;
+  }
+
+  params.push(`%${keyword}%`);
+  filters.push(`${column} ILIKE $${params.length}`);
+}
+
+export async function listAll(filters = {}, pagination) {
+  const params = [];
+  const whereFilters = [];
+
+  addTextFilter(whereFilters, params, filters.name, "p.name");
+  addTextFilter(whereFilters, params, filters.studentNo, "s.student_no");
+
+  const whereClause = whereFilters.length ? `WHERE ${whereFilters.join(" AND ")}` : "";
+  const selectSql = `
     SELECT
       p.people_id AS id,
       p.name,
@@ -36,9 +54,19 @@ export async function listAll() {
     LEFT JOIN department sd ON sd.dep_id = s.dep_id
     LEFT JOIN teacher t ON t.people_id = p.people_id
     LEFT JOIN department td ON td.dep_id = t.dept_id
-    ORDER BY p.people_id DESC
-  `);
+    ${whereClause}
+  `;
 
+  if (pagination) {
+    return queryPage(query, {
+      selectSql,
+      params,
+      orderBy: "id DESC",
+      pagination
+    });
+  }
+
+  const result = await query(`${selectSql} ORDER BY p.people_id DESC`, params);
   return result.rows;
 }
 

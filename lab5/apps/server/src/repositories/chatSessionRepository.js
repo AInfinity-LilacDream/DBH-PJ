@@ -1,6 +1,7 @@
 import { query } from "../db/pool.js";
 import { HttpError } from "../utils/httpError.js";
 import { requireNumber, requireText } from "../utils/payload.js";
+import { queryPage } from "../utils/pagination.js";
 
 const SESSION_LIST_LIMIT = 50;
 const MESSAGE_ROLES = new Set(["user", "assistant", "tool", "system"]);
@@ -180,7 +181,7 @@ export async function createMessage(payload) {
   return result.rows[0];
 }
 
-export async function listAllForAdmin({ keyword } = {}) {
+export async function listAllForAdmin({ keyword } = {}, pagination) {
   const normalizedKeyword = String(keyword ?? "").trim();
   const params = [];
   let whereSql = "";
@@ -190,8 +191,7 @@ export async function listAllForAdmin({ keyword } = {}) {
     whereSql = "WHERE cs.title ILIKE $1 OR u.username ILIKE $1";
   }
 
-  const result = await query(
-    `
+  const selectSql = `
       SELECT
         cs.session_id AS id,
         cs.user_id AS "userId",
@@ -206,12 +206,18 @@ export async function listAllForAdmin({ keyword } = {}) {
       LEFT JOIN ChatMessage cm ON cm.session_id = cs.session_id
       ${whereSql}
       GROUP BY cs.session_id, u.username
-      ORDER BY cs.updated_at DESC
-      LIMIT ${SESSION_LIST_LIMIT}
-    `,
-    params
-  );
+    `;
 
+  if (pagination) {
+    return queryPage(query, {
+      selectSql,
+      params,
+      orderBy: '"updatedAt" DESC',
+      pagination
+    });
+  }
+
+  const result = await query(`${selectSql} ORDER BY cs.updated_at DESC LIMIT ${SESSION_LIST_LIMIT}`, params);
   return result.rows;
 }
 

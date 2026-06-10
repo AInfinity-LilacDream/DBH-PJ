@@ -1,5 +1,6 @@
 import * as chatSessionRepository from "../repositories/chatSessionRepository.js";
 import { HttpError } from "../utils/httpError.js";
+import { isPagedResult, parsePagination } from "../utils/pagination.js";
 
 export async function createSession(req, res, next) {
   try {
@@ -36,8 +37,13 @@ export async function listMessages(req, res, next) {
 
 export async function listAdminSessions(req, res, next) {
   try {
-    const sessions = await chatSessionRepository.listAllForAdmin(req.query);
-    res.json({ data: sessions });
+    const result = await chatSessionRepository.listAllForAdmin(req.query, parsePagination(req.query));
+    if (isPagedResult(result)) {
+      res.json({ data: result.rows, pagination: result.pagination });
+      return;
+    }
+
+    res.json({ data: result });
   } catch (error) {
     next(error);
   }

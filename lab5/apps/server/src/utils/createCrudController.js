@@ -1,9 +1,16 @@
+import { isPagedResult, parsePagination } from "./pagination.js";
+
 export function createCrudController(repository) {
   return {
     async list(req, res, next) {
       try {
-        const rows = await repository.listAll();
-        res.json({ data: rows });
+        const result = await repository.listAll(req.query, parsePagination(req.query));
+        if (isPagedResult(result)) {
+          res.json({ data: result.rows, pagination: result.pagination });
+          return;
+        }
+
+        res.json({ data: result });
       } catch (error) {
         next(error);
       }

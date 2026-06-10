@@ -6,6 +6,8 @@ import { getRowDisplayName } from "../utils/adminFormUtils.js";
 export function useAdminModuleState() {
   const [activeKey, setActiveKey] = useState(adminModules[0].key);
   const [rows, setRows] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, pageSize: 20, total: 0, pages: 1 });
+  const [listParams, setListParams] = useState({ page: 1, pageSize: 20 });
   const [editingRow, setEditingRow] = useState(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -30,7 +32,7 @@ export function useAdminModuleState() {
     [activeModule]
   );
 
-  async function loadRows(moduleKey = activeKey) {
+  async function loadRows(moduleKey = activeKey, params = listParams) {
     setIsLoading(true);
     setMessage("");
 
@@ -38,15 +40,25 @@ export function useAdminModuleState() {
 
     if (!module.api) {
       setRows([]);
+      setPagination({ page: 1, pageSize: params.pageSize ?? 20, total: 0, pages: 1 });
       setIsLoading(false);
       return;
     }
 
     try {
-      const result = await module.api.list();
+      const result = await module.api.list(params);
       setRows(result.data ?? []);
+      setPagination(
+        result.pagination ?? {
+          page: params.page ?? 1,
+          pageSize: params.pageSize ?? 20,
+          total: result.data?.length ?? 0,
+          pages: 1
+        }
+      );
     } catch (error) {
       setRows([]);
+      setPagination({ page: params.page ?? 1, pageSize: params.pageSize ?? 20, total: 0, pages: 1 });
       setMessage(error.message);
     } finally {
       setIsLoading(false);
@@ -54,8 +66,20 @@ export function useAdminModuleState() {
   }
 
   useEffect(() => {
-    loadRows(activeKey);
+    const nextParams = { page: 1, pageSize: listParams.pageSize };
+    setListParams(nextParams);
+    loadRows(activeKey, nextParams);
   }, [activeKey]);
+
+  async function updateListParams(nextParams) {
+    const mergedParams = {
+      ...listParams,
+      ...nextParams
+    };
+
+    setListParams(mergedParams);
+    await loadRows(activeModule.key, mergedParams);
+  }
 
   async function loadFieldOptions(optionKeys = fkOptionKeys, searchMap = fieldOptionSearchMap) {
     if (!isFormOpen || optionKeys.length === 0) {
@@ -111,7 +135,7 @@ export function useAdminModuleState() {
 
       setIsFormOpen(false);
       setEditingRow(null);
-      await loadRows(activeModule.key);
+      await loadRows(activeModule.key, listParams);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -130,7 +154,7 @@ export function useAdminModuleState() {
 
     try {
       await activeModule.api.remove(row.id);
-      await loadRows(activeModule.key);
+      await loadRows(activeModule.key, listParams);
     } catch (error) {
       setMessage(error.message);
     }
@@ -147,6 +171,8 @@ export function useAdminModuleState() {
     activeKey,
     activeModule,
     rows,
+    pagination,
+    listParams,
     editingRow,
     isFormOpen,
     setIsFormOpen,
@@ -159,6 +185,7 @@ export function useAdminModuleState() {
     openEditForm,
     handleSubmit,
     handleDelete,
+    updateListParams,
     switchModule
   };
 }

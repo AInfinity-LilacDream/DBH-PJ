@@ -14,9 +14,20 @@ export function getChatSessionMessages(sessionId) {
   return request(`/api/chat/sessions/${sessionId}/messages`);
 }
 
-export function listAdminChatSessions(keyword = "") {
-  const query = keyword.trim() ? `?keyword=${encodeURIComponent(keyword.trim())}` : "";
-  return request(`/api/admin/chat-sessions${query}`);
+export function listAdminChatSessions(params = {}) {
+  const normalizedParams = typeof params === "string" ? { keyword: params } : params;
+  const queryParams = new URLSearchParams();
+
+  Object.entries(normalizedParams ?? {}).forEach(([key, value]) => {
+    const normalizedValue = typeof value === "string" ? value.trim() : value;
+
+    if (normalizedValue) {
+      queryParams.set(key, normalizedValue);
+    }
+  });
+
+  const queryString = queryParams.toString();
+  return request(`/api/admin/chat-sessions${queryString ? `?${queryString}` : ""}`);
 }
 
 export function getAdminChatSessionDetail(sessionId) {

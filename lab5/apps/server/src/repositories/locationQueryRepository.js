@@ -1,5 +1,6 @@
 import { query } from "../db/pool.js";
 import { createKeywordPattern } from "../utils/keyword.js";
+import { queryPage } from "../utils/pagination.js";
 
 function addFilter(filters, params, value, sql) {
   if (!value) {
@@ -10,7 +11,7 @@ function addFilter(filters, params, value, sql) {
   filters.push(sql(params.length));
 }
 
-export async function search(filters = {}) {
+export async function search(filters = {}, pagination) {
   const keywordPattern = createKeywordPattern(filters.keyWord ?? filters.name);
   const params = [];
   const whereFilters = [];
@@ -21,8 +22,7 @@ export async function search(filters = {}) {
 
   const whereClause = whereFilters.length ? `WHERE ${whereFilters.join(" AND ")}` : "";
 
-  const result = await query(
-    `
+  const selectSql = `
       SELECT
         l.location_id AS "locationId",
         l.location_name AS "locationName",
@@ -42,10 +42,17 @@ export async function search(filters = {}) {
       JOIN building b ON b.building_id = l.building_id
       JOIN campus c ON c.campus_id = b.campus_id
       ${whereClause}
-      ORDER BY c.campus_name, b.building_name, l.location_name
-    `,
-    params
-  );
+    `;
 
+  if (pagination) {
+    return queryPage(query, {
+      selectSql,
+      params,
+      orderBy: '"campusName", "buildingName", "locationName"',
+      pagination
+    });
+  }
+
+  const result = await query(`${selectSql} ORDER BY c.campus_name, b.building_name, l.location_name`, params);
   return result.rows;
 }

@@ -1,8 +1,9 @@
 import { query } from "../db/pool.js";
 import { ensureAffected, optionalText, requireNumber, requireText } from "../utils/payload.js";
+import { queryPage } from "../utils/pagination.js";
 
-export async function listAll() {
-  const result = await query(`
+export async function listAll(_filters = {}, pagination) {
+  const selectSql = `
     SELECT
       qr.record_id AS id,
       qr.user_id AS "userId",
@@ -14,9 +15,13 @@ export async function listAll() {
       COALESCE(qr.query_result, '') AS "queryResult"
     FROM queryrecord qr
     JOIN sysuser u ON u.user_id = qr.user_id
-    ORDER BY qr.query_time DESC
-  `);
+  `;
 
+  if (pagination) {
+    return queryPage(query, { selectSql, orderBy: '"queryTime" DESC', pagination });
+  }
+
+  const result = await query(`${selectSql} ORDER BY qr.query_time DESC`);
   return result.rows;
 }
 

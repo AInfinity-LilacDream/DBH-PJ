@@ -15,6 +15,8 @@ export function AdminDashboard({ user, onBackHome, onLogout }) {
     activeKey,
     activeModule,
     rows,
+    pagination,
+    listParams,
     editingRow,
     isFormOpen,
     setIsFormOpen,
@@ -27,6 +29,7 @@ export function AdminDashboard({ user, onBackHome, onLogout }) {
     openEditForm,
     handleSubmit,
     handleDelete,
+    updateListParams,
     switchModule
   } = useAdminModuleState();
 
@@ -55,13 +58,16 @@ export function AdminDashboard({ user, onBackHome, onLogout }) {
             <AdminChatSessionPanel />
           ) : (
             <AdminDataTable
-              activeModule={activeModule}
-              isLoading={isLoading}
-              rows={rows}
-              onCreate={openCreateForm}
-              onEdit={openEditForm}
-              onDelete={handleDelete}
-            />
+            activeModule={activeModule}
+            isLoading={isLoading}
+            pagination={pagination}
+            listParams={listParams}
+            rows={rows}
+            onCreate={openCreateForm}
+            onEdit={openEditForm}
+            onDelete={handleDelete}
+            onQueryChange={updateListParams}
+          />
           )}
         </div>
       </section>

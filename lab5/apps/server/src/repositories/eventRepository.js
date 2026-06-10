@@ -1,8 +1,31 @@
 import { query } from "../db/pool.js";
 import { ensureAffected, optionalNumber, optionalText, requireText } from "../utils/payload.js";
+import { queryPage } from "../utils/pagination.js";
 
-export async function listAll() {
-  const result = await query(`
+function addFilter(filters, params, value, sql) {
+  if (!value) {
+    return;
+  }
+
+  params.push(value);
+  filters.push(sql(params.length));
+}
+
+export async function listAll(filters = {}, pagination) {
+  const params = [];
+  const whereFilters = [];
+
+  addFilter(whereFilters, params, filters.hostDepId, (index) => `e.host_dep_id = $${index}`);
+  addFilter(whereFilters, params, filters.campusId, (index) => `c.campus_id = $${index}`);
+  addFilter(whereFilters, params, filters.locationId, (index) => `e.location_id = $${index}`);
+  addFilter(whereFilters, params, filters.startDate, (index) => `e.start_time >= $${index}::date`);
+  addFilter(whereFilters, params, filters.endDate, (index) => `e.start_time < ($${index}::date + INTERVAL '1 day')`);
+  addFilter(whereFilters, params, filters.eventName ? `%${String(filters.eventName).trim()}%` : "", (index) => (
+    `e.event_name ILIKE $${index}`
+  ));
+
+  const whereClause = whereFilters.length ? `WHERE ${whereFilters.join(" AND ")}` : "";
+  const selectSql = `
     SELECT
       e.event_id AS id,
       e.event_name AS "eventName",
@@ -21,9 +44,14 @@ export async function listAll() {
     LEFT JOIN building b ON b.building_id = l.building_id
     LEFT JOIN campus c ON c.campus_id = b.campus_id
     LEFT JOIN department d ON d.dep_id = e.host_dep_id
-    ORDER BY e.event_id DESC
-  `);
+    ${whereClause}
+  `;
 
+  if (pagination) {
+    return queryPage(query, { selectSql, params, orderBy: "id DESC", pagination });
+  }
+
+  const result = await query(`${selectSql} ORDER BY e.event_id DESC`, params);
   return result.rows;
 }
 

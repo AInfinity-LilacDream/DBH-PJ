@@ -1,8 +1,42 @@
 import { query } from "../db/pool.js";
 import { ensureAffected, optionalText, requireNumber, requireText } from "../utils/payload.js";
+import { queryPage } from "../utils/pagination.js";
 
-export async function listAll() {
-  const result = await query(`
+function addFilter(filters, params, value, sql) {
+  if (!value) {
+    return;
+  }
+
+  params.push(value);
+  filters.push(sql(params.length));
+}
+
+export async function listAll(filters = {}, pagination) {
+  const params = [];
+  const whereFilters = [];
+
+  addFilter(whereFilters, params, filters.courseName ? `%${String(filters.courseName).trim()}%` : "", (index) => (
+    `"courseName" ILIKE $${index}`
+  ));
+  addFilter(whereFilters, params, filters.teacherId, (index) => (
+    `EXISTS (
+      SELECT 1
+      FROM teaching filter_te
+      WHERE filter_te.course_id = page_source.id
+        AND filter_te.teacher_id = $${index}
+    )`
+  ));
+  addFilter(whereFilters, params, filters.semester, (index) => (
+    `EXISTS (
+      SELECT 1
+      FROM teaching filter_te
+      WHERE filter_te.course_id = page_source.id
+        AND filter_te.semester = $${index}
+    )`
+  ));
+
+  const whereClause = whereFilters.length ? `WHERE ${whereFilters.join(" AND ")}` : "";
+  const selectSql = `
     WITH course_teaching AS (
       SELECT
         te.course_id,
@@ -26,9 +60,18 @@ export async function listAll() {
     FROM course c
     JOIN department d ON d.dep_id = c.dep_id
     LEFT JOIN course_teaching t ON t.course_id = c.course_id
-    ORDER BY c.course_id DESC
-  `);
+  `;
 
+  if (pagination) {
+    return queryPage(query, {
+      selectSql: `SELECT * FROM (${selectSql}) AS page_source ${whereClause}`,
+      params,
+      orderBy: "id DESC",
+      pagination
+    });
+  }
+
+  const result = await query(`SELECT * FROM (${selectSql}) AS page_source ${whereClause} ORDER BY id DESC`, params);
   return result.rows;
 }
 

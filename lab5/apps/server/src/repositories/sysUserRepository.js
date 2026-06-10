@@ -1,9 +1,17 @@
 import { query } from "../db/pool.js";
 import { hashPassword } from "../utils/password.js";
 import { ensureAffected, optionalText, requireText } from "../utils/payload.js";
+import { queryPage } from "../utils/pagination.js";
 
-export async function listAll() {
-  const result = await query(`
+export async function listAll(filters = {}, pagination) {
+  const params = [];
+  const keyword = typeof filters.username === "string" ? filters.username.trim() : "";
+  const whereClause = keyword ? "WHERE u.username ILIKE $1" : "";
+  if (keyword) {
+    params.push(`%${keyword}%`);
+  }
+
+  const selectSql = `
     SELECT
       u.user_id AS id,
       u.people_id AS "peopleId",
@@ -16,9 +24,14 @@ export async function listAll() {
     FROM sysuser u
     LEFT JOIN people p ON p.people_id = u.people_id
     LEFT JOIN department d ON d.dep_id = u.dep_id
-    ORDER BY u.user_id DESC
-  `);
+    ${whereClause}
+  `;
 
+  if (pagination) {
+    return queryPage(query, { selectSql, params, orderBy: "id DESC", pagination });
+  }
+
+  const result = await query(`${selectSql} ORDER BY u.user_id DESC`, params);
   return result.rows;
 }
 

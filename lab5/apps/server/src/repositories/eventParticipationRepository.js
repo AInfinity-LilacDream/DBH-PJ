@@ -1,6 +1,7 @@
 import { query } from "../db/pool.js";
 import { decodeCompositeKey, encodeCompositeKey } from "../utils/compositeKey.js";
 import { ensureAffected, requireNumber } from "../utils/payload.js";
+import { queryPage } from "../utils/pagination.js";
 
 // === 常量定义 ===
 const eventCardColumns = `
@@ -35,10 +36,19 @@ const eventCardJoins = `
   LEFT JOIN department d ON d.dep_id = e.host_dep_id
 `;
 
+function addFilter(filters, params, value, sql) {
+  if (!value) {
+    return;
+  }
+
+  params.push(value);
+  filters.push(sql(params.length));
+}
+
 // === 后台管理 CRUD 方法 ===
 
-export async function listAll() {
-  const result = await query(`
+export async function listAll(_filters = {}, pagination) {
+  const selectSql = `
     SELECT
       ep.participant_id AS "participantId",
       p.name AS "participantName",
@@ -49,9 +59,13 @@ export async function listAll() {
     FROM eventparticipation ep
     JOIN people p ON p.people_id = ep.participant_id
     JOIN event e ON e.event_id = ep.event_id
-    ORDER BY ep.register_time DESC
-  `);
+  `;
 
+  if (pagination) {
+    return queryPage(query, { selectSql, orderBy: '"registerTime" DESC', pagination });
+  }
+
+  const result = await query(`${selectSql} ORDER BY ep.register_time DESC`);
   return result.rows;
 }
 
@@ -157,19 +171,40 @@ export async function isRegistered(participantId, eventId) {
   return result.rowCount > 0;
 }
 
-export async function listUpcomingByParticipant(participantId) {
-  const result = await query(
-    `
+export async function listUpcomingByParticipant(participantId, filters = {}, pagination) {
+  const params = [participantId];
+  const whereFilters = [
+    "ep.participant_id = $1",
+    "e.start_time >= NOW()"
+  ];
+
+  addFilter(whereFilters, params, filters.keyWord ? `%${String(filters.keyWord).trim()}%` : "", (index) => (
+    `e.event_name ILIKE $${index}`
+  ));
+  addFilter(whereFilters, params, filters.hostDepId, (index) => `d.dep_id = $${index}`);
+  addFilter(whereFilters, params, filters.campusId, (index) => `c.campus_id = $${index}`);
+  addFilter(whereFilters, params, filters.locationId, (index) => `l.location_id = $${index}`);
+  addFilter(whereFilters, params, filters.startDate, (index) => `e.start_time >= $${index}::date`);
+  addFilter(whereFilters, params, filters.endDate, (index) => `e.start_time < ($${index}::date + INTERVAL '1 day')`);
+
+  const selectSql = `
       SELECT
         ${eventCardColumns},
         ep.register_time AS "registerTime"
       ${eventCardJoins}
-      WHERE ep.participant_id = $1
-        AND e.start_time >= NOW()
-      ORDER BY e.start_time ASC, e.event_name
-    `,
-    [participantId]
-  );
+      WHERE ${whereFilters.join(" AND ")}
+    `;
+
+  if (pagination) {
+    return queryPage(query, {
+      selectSql,
+      params,
+      orderBy: '"startTime" ASC, "eventName"',
+      pagination
+    });
+  }
+
+  const result = await query(`${selectSql} ORDER BY e.start_time ASC, e.event_name`, params);
 
   return result.rows;
 }

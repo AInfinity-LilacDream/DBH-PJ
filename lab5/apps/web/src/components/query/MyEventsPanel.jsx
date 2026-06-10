@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Button, Input, Select, SelectItem } from "@heroui/react";
+import React, { useEffect, useState } from "react";
+import { Button, Input, Pagination, Select, SelectItem } from "@heroui/react";
 import { DateRangePicker } from "@heroui/date-picker";
 import { parseDate } from "@internationalized/date";
 import { addToast } from "@heroui/toast";
@@ -9,6 +9,8 @@ import { listCatalogOptions } from "../../services/catalog/options.js";
 import { cleanInputClassNames } from "../../styles/inputClassNames.js";
 
 const emptyOptionKey = "__all__";
+const pageSize = 12;
+const initialPagination = { page: 1, pageSize, total: 0, pages: 1 };
 
 const filterConfig = [
   { key: "hostDepId", label: "举办院系", optionKey: "departments" },
@@ -92,60 +94,16 @@ function toDateRangePickerValue(startValue, endValue) {
   return { start, end };
 }
 
-function getDateStart(date) {
-  return date ? new Date(`${date}T00:00:00`).getTime() : null;
-}
-
-function getDateEnd(date) {
-  return date ? new Date(`${date}T00:00:00`).getTime() + 24 * 60 * 60 * 1000 : null;
-}
-
-function matchesFilters(item, filters, keyword) {
-  const normalizedKeyword = keyword.trim().toLowerCase();
-  const eventTime = item.startTime ? new Date(item.startTime).getTime() : null;
-  const startTime = getDateStart(filters.startDate);
-  const endTime = getDateEnd(filters.endDate);
-
-  if (normalizedKeyword && !String(item.eventName ?? item.title ?? "").toLowerCase().includes(normalizedKeyword)) {
-    return false;
-  }
-
-  if (filters.hostDepId && String(item.hostDepId) !== String(filters.hostDepId)) {
-    return false;
-  }
-
-  if (filters.campusId && String(item.campusId) !== String(filters.campusId)) {
-    return false;
-  }
-
-  if (filters.locationId && String(item.locationId) !== String(filters.locationId)) {
-    return false;
-  }
-
-  if (startTime && (!eventTime || eventTime < startTime)) {
-    return false;
-  }
-
-  if (endTime && (!eventTime || eventTime >= endTime)) {
-    return false;
-  }
-
-  return true;
-}
-
 export function MyEventsPanel({ user, activeItem, onEnterAccount }) {
   const [items, setItems] = useState([]);
   const [keyword, setKeyword] = useState("");
   const [filters, setFilters] = useState(createEmptyFilters);
   const [optionMap, setOptionMap] = useState({});
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState(initialPagination);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingOptions, setIsLoadingOptions] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-
-  const filteredItems = useMemo(
-    () => items.filter((item) => matchesFilters(item, filters, keyword)),
-    [items, filters, keyword]
-  );
 
   function notify(message, color = "success") {
     addToast({
@@ -156,32 +114,47 @@ export function MyEventsPanel({ user, activeItem, onEnterAccount }) {
   }
 
   function updateFilter(key, value) {
-    setFilters((current) => {
-      const nextFilters = { ...current, [key]: value };
-      getDependentKeys(key).forEach((dependentKey) => {
-        nextFilters[dependentKey] = "";
-      });
-      return nextFilters;
+    const nextFilters = { ...filters, [key]: value };
+    getDependentKeys(key).forEach((dependentKey) => {
+      nextFilters[dependentKey] = "";
     });
+
+    setFilters(nextFilters);
+    setPage(1);
   }
 
   function updateDateRange(field, value) {
-    setFilters((current) => ({
-      ...current,
+    setFilters({
+      ...filters,
       [field.startKey]: value?.start ? value.start.toString() : "",
       [field.endKey]: value?.end ? value.end.toString() : ""
-    }));
+    });
+    setPage(1);
   }
 
-  async function loadItems() {
+  async function loadItems(nextPage = page) {
+    if (!user?.peopleId) {
+      setItems([]);
+      setPagination(initialPagination);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     setErrorMessage("");
 
     try {
-      const result = await listMyEvents(user.userId);
+      const result = await listMyEvents(user.userId, {
+        keyWord: keyword,
+        ...filters,
+        page: nextPage,
+        pageSize
+      });
       setItems(result.data ?? []);
+      setPagination(result.pagination ?? { page: nextPage, pageSize, total: result.data?.length ?? 0, pages: 1 });
     } catch (error) {
       setItems([]);
+      setPagination({ page: nextPage, pageSize, total: 0, pages: 1 });
       setErrorMessage(error.message);
     } finally {
       setIsLoading(false);
@@ -190,7 +163,7 @@ export function MyEventsPanel({ user, activeItem, onEnterAccount }) {
 
   useEffect(() => {
     loadItems();
-  }, [user.userId]);
+  }, [user.userId, user?.peopleId, keyword, filters, page]);
 
   useEffect(() => {
     if (!user?.peopleId) {
@@ -310,8 +283,14 @@ export function MyEventsPanel({ user, activeItem, onEnterAccount }) {
                 radius="sm"
                 value={keyword}
                 variant="bordered"
-                onClear={() => setKeyword("")}
-                onValueChange={setKeyword}
+                onClear={() => {
+                  setKeyword("");
+                  setPage(1);
+                }}
+                onValueChange={(value) => {
+                  setKeyword(value);
+                  setPage(1);
+                }}
               />
             </section>
           ) : null}
@@ -328,9 +307,9 @@ export function MyEventsPanel({ user, activeItem, onEnterAccount }) {
             </section>
           ) : null}
 
-          {!isLoading && !errorMessage && user?.peopleId && filteredItems.length > 0 ? (
+          {!isLoading && !errorMessage && user?.peopleId && items.length > 0 ? (
             <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-              {filteredItems.map((item) => (
+              {items.map((item) => (
                 <EventCard
                   key={item.eventId}
                   item={{ ...item, isRegistered: true }}
@@ -342,10 +321,26 @@ export function MyEventsPanel({ user, activeItem, onEnterAccount }) {
             </section>
           ) : null}
 
-          {!isLoading && !errorMessage && user?.peopleId && filteredItems.length === 0 ? (
+          {!isLoading && !errorMessage && user?.peopleId && items.length === 0 ? (
             <section className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
-              {items.length === 0 ? "暂无即将开始的已报名活动。" : "没有匹配的已报名活动。"}
+              暂无匹配的已报名活动。
             </section>
+          ) : null}
+
+          {!errorMessage && user?.peopleId && pagination.total > 0 ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3">
+              <p className="text-sm text-slate-500">
+                共 {pagination.total} 条，第 {pagination.page} / {pagination.pages} 页
+              </p>
+              <Pagination
+                showControls
+                isDisabled={isLoading}
+                page={pagination.page}
+                radius="sm"
+                total={Math.max(1, pagination.pages)}
+                onChange={setPage}
+              />
+            </div>
           ) : null}
         </div>
       </div>

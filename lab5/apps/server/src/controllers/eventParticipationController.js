@@ -1,9 +1,20 @@
 import * as eventParticipationService from "../services/eventParticipationService.js";
+import { isPagedResult, parsePagination } from "../utils/pagination.js";
 
 export async function listMyEvents(req, res, next) {
   try {
-    const events = await eventParticipationService.listMyUpcomingEvents(Number(req.params.userId));
-    res.json({ data: events });
+    const result = await eventParticipationService.listMyUpcomingEvents(
+      Number(req.params.userId),
+      req.query,
+      parsePagination(req.query)
+    );
+
+    if (isPagedResult(result)) {
+      res.json({ data: result.rows, pagination: result.pagination });
+      return;
+    }
+
+    res.json({ data: result });
   } catch (error) {
     next(error);
   }

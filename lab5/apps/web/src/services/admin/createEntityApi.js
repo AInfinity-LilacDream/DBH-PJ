@@ -1,9 +1,9 @@
-import { request } from "../http.js";
+import { get, request } from "../http.js";
 
 export function createEntityApi(basePath) {
   return {
-    list() {
-      return request(basePath);
+    list(params = {}) {
+      return get(basePath, params);
     },
     create(payload) {
       return request(basePath, {

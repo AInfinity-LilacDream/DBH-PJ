@@ -1,8 +1,16 @@
 import { query } from "../db/pool.js";
 import { ensureAffected, optionalNumber, optionalText, requireText } from "../utils/payload.js";
+import { queryPage } from "../utils/pagination.js";
 
-export async function listAll() {
-  const result = await query(`
+export async function listAll(filters = {}, pagination) {
+  const params = [];
+  const keyword = typeof filters.depName === "string" ? filters.depName.trim() : "";
+  const whereClause = keyword ? "WHERE d.dep_name ILIKE $1" : "";
+  if (keyword) {
+    params.push(`%${keyword}%`);
+  }
+
+  const selectSql = `
     SELECT
       d.dep_id AS id,
       d.dep_name AS "depName",
@@ -15,9 +23,14 @@ export async function listAll() {
     FROM department d
     LEFT JOIN location l ON l.location_id = d.office_location_id
     LEFT JOIN people p ON p.people_id = d.manager_id
-    ORDER BY d.dep_id DESC
-  `);
+    ${whereClause}
+  `;
 
+  if (pagination) {
+    return queryPage(query, { selectSql, params, orderBy: "id DESC", pagination });
+  }
+
+  const result = await query(`${selectSql} ORDER BY d.dep_id DESC`, params);
   return result.rows;
 }
 

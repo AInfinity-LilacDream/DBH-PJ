@@ -1,5 +1,6 @@
 import { query } from "../db/pool.js";
 import { createKeywordPattern } from "../utils/keyword.js";
+import { queryPage } from "../utils/pagination.js";
 
 function addFilter(filters, params, value, sql) {
   if (!value) {
@@ -10,7 +11,7 @@ function addFilter(filters, params, value, sql) {
   filters.push(sql(params.length));
 }
 
-export async function search(filters = {}) {
+export async function search(filters = {}, pagination) {
   const keywordPattern = createKeywordPattern(filters.keyWord ?? filters.name);
   const params = [];
   const whereFilters = [];
@@ -34,8 +35,7 @@ export async function search(filters = {}) {
 
   const whereClause = whereFilters.length ? `WHERE ${whereFilters.join(" AND ")}` : "";
 
-  const result = await query(
-    `
+  const selectSql = `
       WITH course_teaching AS (
         SELECT
           te.course_id,
@@ -64,10 +64,17 @@ export async function search(filters = {}) {
       JOIN department d ON d.dep_id = co.dep_id
       LEFT JOIN course_teaching t ON t.course_id = co.course_id
       ${whereClause}
-      ORDER BY d.dep_name, co.course_name
-    `,
-    params
-  );
+    `;
 
+  if (pagination) {
+    return queryPage(query, {
+      selectSql,
+      params,
+      orderBy: '"departmentName", "courseName"',
+      pagination
+    });
+  }
+
+  const result = await query(`${selectSql} ORDER BY d.dep_name, co.course_name`, params);
   return result.rows;
 }

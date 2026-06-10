@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Input, Select, SelectItem } from "@heroui/react";
+import { Input, Pagination, Select, SelectItem } from "@heroui/react";
 import { DateRangePicker } from "@heroui/date-picker";
 import { parseDate } from "@internationalized/date";
 import { addToast } from "@heroui/toast";
@@ -11,6 +11,8 @@ import { listCatalogOptions } from "../../services/catalog/options.js";
 import { cleanInputClassNames } from "../../styles/inputClassNames.js";
 
 const emptyOptionKey = "__all__";
+const queryPageSize = 12;
+const initialPagination = { page: 1, pageSize: queryPageSize, total: 0, pages: 1 };
 
 const filterConfigs = {
   "location-query": [
@@ -135,14 +137,16 @@ export function QueryContentPanel({
   onRefreshSessions
 }) {
   const [keyword, setKeyword] = useState("");
-  const [filters, setFilters] = useState({});
+  const activeFilterConfig = useMemo(() => filterConfigs[activeItem.key] ?? [], [activeItem.key]);
+  const [filters, setFilters] = useState(() => createEmptyFilters(activeFilterConfig));
   const [optionMap, setOptionMap] = useState({});
   const [items, setItems] = useState([]);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState(initialPagination);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingOptions, setIsLoadingOptions] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const isEventQuery = activeItem.key === "event-query";
-  const activeFilterConfig = useMemo(() => filterConfigs[activeItem.key] ?? [], [activeItem.key]);
 
   function notify(message, color = "success") {
     addToast({
@@ -153,21 +157,22 @@ export function QueryContentPanel({
   }
 
   function updateFilter(key, value) {
-    setFilters((current) => {
-      const nextFilters = { ...current, [key]: value };
-      getDependentKeys(key, activeFilterConfig).forEach((dependentKey) => {
-        nextFilters[dependentKey] = "";
-      });
-      return nextFilters;
+    const nextFilters = { ...filters, [key]: value };
+    getDependentKeys(key, activeFilterConfig).forEach((dependentKey) => {
+      nextFilters[dependentKey] = "";
     });
+
+    setFilters(nextFilters);
+    setPage(1);
   }
 
   function updateDateRange(field, value) {
-    setFilters((current) => ({
-      ...current,
+    setFilters({
+      ...filters,
       [field.startKey]: value?.start ? value.start.toString() : "",
       [field.endKey]: value?.end ? value.end.toString() : ""
-    }));
+    });
+    setPage(1);
   }
 
   async function handleRegister(eventId) {
@@ -199,6 +204,8 @@ export function QueryContentPanel({
   useEffect(() => {
     setKeyword("");
     setFilters(createEmptyFilters(activeFilterConfig));
+    setPage(1);
+    setPagination(initialPagination);
   }, [activeFilterConfig]);
 
   useEffect(() => {
@@ -255,17 +262,19 @@ export function QueryContentPanel({
       setErrorMessage("");
 
       try {
-        const searchFilters = { keyWord: keyword, ...filters };
+        const searchFilters = { keyWord: keyword, ...filters, page, pageSize: queryPageSize };
         const result = isEventQuery
           ? await activeItem.search(searchFilters, user?.peopleId ?? undefined)
           : await activeItem.search(searchFilters);
 
         if (isCurrent) {
           setItems(result.data ?? []);
+          setPagination(result.pagination ?? { page, pageSize: queryPageSize, total: result.data?.length ?? 0, pages: 1 });
         }
       } catch (error) {
         if (isCurrent) {
           setItems([]);
+          setPagination({ page, pageSize: queryPageSize, total: 0, pages: 1 });
           setErrorMessage(error.message);
         }
       } finally {
@@ -280,7 +289,7 @@ export function QueryContentPanel({
     return () => {
       isCurrent = false;
     };
-  }, [activeItem, keyword, filters, user?.peopleId, isEventQuery]);
+  }, [activeItem, keyword, filters, page, user?.peopleId, isEventQuery]);
 
   if (activeItem.key === "new-chat") {
     return (
@@ -357,8 +366,14 @@ export function QueryContentPanel({
                 radius="sm"
                 value={keyword}
                 variant="bordered"
-                onClear={() => setKeyword("")}
-                onValueChange={setKeyword}
+                onClear={() => {
+                  setKeyword("");
+                  setPage(1);
+                }}
+                onValueChange={(value) => {
+                  setKeyword(value);
+                  setPage(1);
+                }}
               />
             </div>
           </section>
@@ -397,6 +412,22 @@ export function QueryContentPanel({
             <section className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
               没有匹配的内容
             </section>
+          ) : null}
+
+          {!errorMessage && pagination.total > 0 ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3">
+              <p className="text-sm text-slate-500">
+                共 {pagination.total} 条，第 {pagination.page} / {pagination.pages} 页
+              </p>
+              <Pagination
+                showControls
+                isDisabled={isLoading}
+                page={pagination.page}
+                radius="sm"
+                total={Math.max(1, pagination.pages)}
+                onChange={setPage}
+              />
+            </div>
           ) : null}
         </div>
       </div>

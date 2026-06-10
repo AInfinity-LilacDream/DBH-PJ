@@ -1,5 +1,6 @@
 import { query } from "../db/pool.js";
 import { createKeywordPattern } from "../utils/keyword.js";
+import { queryPage } from "../utils/pagination.js";
 
 function addFilter(filters, params, value, sql) {
   if (!value) {
@@ -10,7 +11,7 @@ function addFilter(filters, params, value, sql) {
   filters.push(sql(params.length));
 }
 
-export async function search(filters = {}, peopleId = null) {
+export async function search(filters = {}, peopleId = null, pagination) {
   const keywordPattern = createKeywordPattern(filters.keyWord ?? filters.name);
   const params = [];
   const whereFilters = [];
@@ -42,8 +43,7 @@ export async function search(filters = {}, peopleId = null) {
     ? `WHERE ${whereFilters.join(" AND ")}`
     : "";
 
-  const result = await query(
-    `
+  const selectSql = `
       SELECT
         e.event_id AS "eventId",
         e.event_name AS "eventName",
@@ -72,10 +72,17 @@ export async function search(filters = {}, peopleId = null) {
       LEFT JOIN campus c ON c.campus_id = b.campus_id
       LEFT JOIN department d ON d.dep_id = e.host_dep_id
       ${whereClause}
-      ORDER BY e.start_time DESC, e.event_name
-    `,
-    params
-  );
+    `;
 
+  if (pagination) {
+    return queryPage(query, {
+      selectSql,
+      params,
+      orderBy: '"startTime" DESC, "eventName"',
+      pagination
+    });
+  }
+
+  const result = await query(`${selectSql} ORDER BY e.start_time DESC, e.event_name`, params);
   return result.rows;
 }

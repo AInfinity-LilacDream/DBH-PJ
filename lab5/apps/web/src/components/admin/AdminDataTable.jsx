@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Button,
   Chip,
   Divider,
   Input,
+  Pagination,
   Select,
   SelectItem,
   Table,
@@ -19,23 +20,26 @@ import { roleTextMap } from "../../constants/roleTextMap.js";
 import { verificationTextMap } from "../../constants/verificationTextMap.js";
 import { displayValue } from "../../utils/adminFormUtils.js";
 import { cleanInputClassNames } from "../../styles/inputClassNames.js";
+import * as fieldOptionsApi from "../../services/admin/fieldOptionsApi.js";
 
 const emptyFilterKey = "__all__";
+const emptyFilterConfig = [];
+const pageSizeOptions = [10, 20, 50, 100];
 
 const filterConfigs = {
   building: [
-    { key: "campusId", label: "所属校区", type: "select", valueKey: "campusId", labelKey: "campusName" },
+    { key: "campusId", label: "所属校区", type: "select", optionKey: "campuses" },
     { key: "buildingName", label: "楼宇名称", type: "text", matchKeys: ["buildingName"] }
   ],
   location: [
-    { key: "campusId", label: "所属校区", type: "select", valueKey: "campusId", labelKey: "campusName" },
+    { key: "campusId", label: "所属校区", type: "select", optionKey: "campuses" },
     {
       key: "buildingId",
       label: "所属楼宇",
       type: "select",
-      valueKey: "buildingId",
-      labelKey: "buildingName",
-      dependsOn: ["campusId"]
+      optionKey: "buildings",
+      dependsOn: ["campusId"],
+      optionParams: { campusId: "campusId" }
     },
     { key: "locationName", label: "名称搜索", type: "text", matchKeys: ["locationName"] }
   ],
@@ -43,20 +47,27 @@ const filterConfigs = {
     { key: "depName", label: "名称搜索", type: "text", matchKeys: ["depName"] }
   ],
   course: [
-    { key: "teacherId", label: "开课老师", type: "multiValueSelect", valueKey: "teacherIds", labelKey: "teacherNames" },
-    { key: "semester", label: "学期", type: "multiValueSelect", valueKey: "semesters", labelKey: "semesters" },
+    { key: "teacherId", label: "开课老师", type: "multiValueSelect", optionKey: "teachers" },
+    {
+      key: "semester",
+      label: "学期",
+      type: "multiValueSelect",
+      optionKey: "semesters",
+      dependsOn: ["teacherId"],
+      optionParams: { teacherId: "teacherId" }
+    },
     { key: "courseName", label: "名称搜索", type: "text", matchKeys: ["courseName"] }
   ],
   event: [
-    { key: "hostDepId", label: "举办院系", type: "select", valueKey: "hostDepId", labelKey: "hostDepartmentName" },
-    { key: "campusId", label: "校区", type: "select", valueKey: "campusId", labelKey: "campusName" },
+    { key: "hostDepId", label: "举办院系", type: "select", optionKey: "departments" },
+    { key: "campusId", label: "校区", type: "select", optionKey: "campuses" },
     {
       key: "locationId",
       label: "地点",
       type: "select",
-      valueKey: "locationId",
-      labelKey: "locationName",
-      dependsOn: ["campusId"]
+      optionKey: "locations",
+      dependsOn: ["campusId"],
+      optionParams: { campusId: "campusId" }
     },
     { key: "dateRange", label: "时间范围", type: "dateRange", startKey: "startDate", endKey: "endDate" },
     { key: "eventName", label: "名称搜索", type: "text", matchKeys: ["eventName"] }
@@ -69,29 +80,18 @@ const filterConfigs = {
     { key: "username", label: "用户名", type: "text", matchKeys: ["username"] }
   ],
   teaching: [
-    { key: "teacherId", label: "老师", type: "select", valueKey: "teacherId", labelKey: "teacherName" },
-    { key: "courseId", label: "课程", type: "select", valueKey: "courseId", labelKey: "courseName" }
+    { key: "teacherId", label: "老师", type: "select", optionKey: "teachers" },
+    { key: "courseId", label: "课程", type: "select", optionKey: "courses" }
   ],
   enrollment: [
-    { key: "studentId", label: "学生", type: "select", valueKey: "studentId", labelKey: "studentName" },
-    { key: "courseId", label: "课程", type: "select", valueKey: "courseId", labelKey: "courseName" }
+    { key: "studentId", label: "学生", type: "select", optionKey: "students" },
+    { key: "courseId", label: "课程", type: "select", optionKey: "courses" }
   ]
 };
-
-function normalizeText(value) {
-  return String(value ?? "").trim().toLowerCase();
-}
 
 function getSelectionValue(keys) {
   const value = Array.from(keys)[0] ?? "";
   return value === emptyFilterKey ? "" : value;
-}
-
-function splitMultiValue(value) {
-  return String(value ?? "")
-    .split(/[、,]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
 }
 
 function createEmptyFilters(config) {
@@ -150,123 +150,123 @@ function toDateRangePickerValue(startValue, endValue) {
   return { start, end };
 }
 
-function getDateStart(date) {
-  return date ? new Date(`${date}T00:00:00`).getTime() : null;
+function getOptionParams(field, filters) {
+  return Object.fromEntries(
+    Object.entries(field.optionParams ?? {})
+      .map(([paramKey, filterKey]) => [paramKey, filters[filterKey]])
+      .filter(([, value]) => value)
+  );
 }
 
-function getDateEnd(date) {
-  return date ? new Date(`${date}T00:00:00`).getTime() + 24 * 60 * 60 * 1000 : null;
+function getPageSize(listParams, pagination) {
+  return listParams?.pageSize ?? pagination?.pageSize ?? 20;
 }
 
-function getSelectOptions(rows, field, filters) {
-  const options = [];
-  const seen = new Set();
-
-  rows.forEach((row) => {
-    if (field.dependsOn?.some((key) => filters[key] && String(row[key] ?? "") !== String(filters[key]))) {
-      return;
-    }
-
-    if (field.type === "multiValueSelect") {
-      const values = splitMultiValue(row[field.valueKey]);
-      const labels = splitMultiValue(row[field.labelKey]);
-
-      values.forEach((value, index) => {
-        if (!value || seen.has(value)) {
-          return;
-        }
-
-        seen.add(value);
-        options.push({ value, label: labels[index] ?? value });
-      });
-      return;
-    }
-
-    const value = row[field.valueKey];
-    const label = row[field.labelKey];
-
-    if (value === null || value === undefined || value === "" || seen.has(String(value))) {
-      return;
-    }
-
-    seen.add(String(value));
-    options.push({ value: String(value), label: String(label || value) });
-  });
-
-  return options.sort((a, b) => a.label.localeCompare(b.label, "zh-CN"));
-}
-
-function matchesFilter(row, field, filters) {
-  if (field.type === "dateRange") {
-    const eventTime = row.startTime ? new Date(String(row.startTime).replace(" ", "T")).getTime() : null;
-    const startTime = getDateStart(filters[field.startKey]);
-    const endTime = getDateEnd(filters[field.endKey]);
-
-    if (startTime && (!eventTime || eventTime < startTime)) {
-      return false;
-    }
-
-    if (endTime && (!eventTime || eventTime >= endTime)) {
-      return false;
-    }
-
-    return true;
-  }
-
-  const filterValue = filters[field.key];
-
-  if (!filterValue) {
-    return true;
-  }
-
-  if (field.type === "select") {
-    return String(row[field.valueKey] ?? "") === String(filterValue);
-  }
-
-  if (field.type === "multiValueSelect") {
-    return splitMultiValue(row[field.valueKey]).includes(String(filterValue));
-  }
-
-  const searchableText = (field.matchKeys ?? [field.key])
-    .map((key) => row[key])
-    .join(" ");
-
-  return normalizeText(searchableText).includes(normalizeText(filterValue));
-}
-
-export function AdminDataTable({ activeModule, rows, isLoading, onCreate, onEdit, onDelete }) {
-  const filterConfig = filterConfigs[activeModule.key] ?? [];
+export function AdminDataTable({
+  activeModule,
+  rows,
+  isLoading,
+  pagination,
+  listParams,
+  onCreate,
+  onEdit,
+  onDelete,
+  onQueryChange
+}) {
+  const filterConfig = filterConfigs[activeModule.key] ?? emptyFilterConfig;
   const [filters, setFilters] = useState(() => createEmptyFilters(filterConfig));
+  const [filterOptionMap, setFilterOptionMap] = useState({});
+  const [isLoadingOptions, setIsLoadingOptions] = useState(false);
 
   useEffect(() => {
     setFilters(createEmptyFilters(filterConfig));
   }, [activeModule.key]);
 
-  const filteredRows = useMemo(() => {
-    if (!filterConfig.length) {
-      return rows;
+  useEffect(() => {
+    const optionFields = filterConfig.filter((field) => field.optionKey);
+
+    if (!optionFields.length) {
+      setFilterOptionMap({});
+      return undefined;
     }
 
-    return rows.filter((row) => filterConfig.every((field) => matchesFilter(row, field, filters)));
-  }, [filterConfig, filters, rows]);
+    let isCurrent = true;
 
-  function updateFilter(key, value) {
-    setFilters((current) => {
-      const nextFilters = { ...current, [key]: value };
-      getDependentKeys(key, filterConfig).forEach((dependentKey) => {
-        nextFilters[dependentKey] = "";
-      });
-      return nextFilters;
+    async function loadFilterOptions() {
+      setIsLoadingOptions(true);
+
+      try {
+        const entries = await Promise.all(
+          optionFields.map(async (field) => {
+            const result = await fieldOptionsApi.list(field.optionKey, getOptionParams(field, filters));
+            return [field.key, result.data ?? []];
+          })
+        );
+
+        if (isCurrent) {
+          setFilterOptionMap(Object.fromEntries(entries));
+        }
+      } catch {
+        if (isCurrent) {
+          setFilterOptionMap({});
+        }
+      } finally {
+        if (isCurrent) {
+          setIsLoadingOptions(false);
+        }
+      }
+    }
+
+    loadFilterOptions();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [activeModule.key, filterConfig, filters]);
+
+  function queryWithFilters(nextFilters, nextParams = {}) {
+    onQueryChange?.({
+      ...nextFilters,
+      page: 1,
+      pageSize: getPageSize(listParams, pagination),
+      ...nextParams
     });
   }
 
+  function updateFilter(key, value) {
+    const nextFilters = { ...filters, [key]: value };
+    getDependentKeys(key, filterConfig).forEach((dependentKey) => {
+      nextFilters[dependentKey] = "";
+    });
+
+    setFilters(nextFilters);
+    queryWithFilters(nextFilters);
+  }
+
   function updateDateRange(field, value) {
-    setFilters((current) => ({
-      ...current,
+    const nextFilters = {
+      ...filters,
       [field.startKey]: value?.start ? value.start.toString() : "",
       [field.endKey]: value?.end ? value.end.toString() : ""
-    }));
+    };
+
+    setFilters(nextFilters);
+    queryWithFilters(nextFilters);
   }
+
+  function handlePageChange(page) {
+    queryWithFilters(filters, { page });
+  }
+
+  function handlePageSizeChange(keys) {
+    const nextPageSize = Number(getSelectionValue(keys)) || getPageSize(listParams, pagination);
+    queryWithFilters(filters, { page: 1, pageSize: nextPageSize });
+  }
+
+  const currentPage = pagination?.page ?? listParams?.page ?? 1;
+  const totalPages = Math.max(1, pagination?.pages ?? 1);
+  const totalRows = pagination?.total ?? rows.length;
+  const selectedPageSize = String(getPageSize(listParams, pagination));
 
   return (
     <section className="flex min-h-0 flex-col rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -292,6 +292,7 @@ export function AdminDataTable({ activeModule, rows, isLoading, onCreate, onEdit
               <Select
                 key={field.key}
                 className="w-full sm:w-44"
+                isLoading={isLoadingOptions && !filterOptionMap[field.key]?.length}
                 label={field.label}
                 radius="sm"
                 selectedKeys={[filters[field.key] ? String(filters[field.key]) : emptyFilterKey]}
@@ -299,7 +300,7 @@ export function AdminDataTable({ activeModule, rows, isLoading, onCreate, onEdit
                 onSelectionChange={(keys) => updateFilter(field.key, getSelectionValue(keys))}
               >
                 <SelectItem key={emptyFilterKey}>全部</SelectItem>
-                {getSelectOptions(rows, field, filters).map((option) => (
+                {(filterOptionMap[field.key] ?? []).map((option) => (
                   <SelectItem key={option.value}>{option.label}</SelectItem>
                 ))}
               </Select>
@@ -335,7 +336,7 @@ export function AdminDataTable({ activeModule, rows, isLoading, onCreate, onEdit
             ))}
             <TableColumn>操作</TableColumn>
           </TableHeader>
-          <TableBody emptyContent={isLoading ? "加载中..." : "暂无匹配数据"} items={filteredRows}>
+          <TableBody emptyContent={isLoading ? "加载中..." : "暂无匹配数据"} items={rows}>
             {(item) => (
               <TableRow key={item.id}>
                 {activeModule.columns.map((column) => (
@@ -367,6 +368,35 @@ export function AdminDataTable({ activeModule, rows, isLoading, onCreate, onEdit
             )}
           </TableBody>
         </Table>
+      </div>
+      <Divider />
+      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+        <p className="text-sm text-slate-500">
+          共 {totalRows} 条，第 {currentPage} / {totalPages} 页
+        </p>
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <Select
+            aria-label="每页条数"
+            className="w-28"
+            radius="sm"
+            selectedKeys={[selectedPageSize]}
+            size="sm"
+            variant="bordered"
+            onSelectionChange={handlePageSizeChange}
+          >
+            {pageSizeOptions.map((size) => (
+              <SelectItem key={String(size)}>{`${size} 条/页`}</SelectItem>
+            ))}
+          </Select>
+          <Pagination
+            showControls
+            isDisabled={isLoading}
+            page={currentPage}
+            radius="sm"
+            total={totalPages}
+            onChange={handlePageChange}
+          />
+        </div>
       </div>
     </section>
   );

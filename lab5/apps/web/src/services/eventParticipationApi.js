@@ -1,7 +1,7 @@
 import { get, request } from "./http.js";
 
-export function listMyEvents(userId) {
-  return get(`/api/account/${userId}/events`);
+export function listMyEvents(userId, params = {}) {
+  return get(`/api/account/${userId}/events`, params);
 }
 
 export function registerForEvent(userId, eventId) {

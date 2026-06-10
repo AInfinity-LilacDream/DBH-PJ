@@ -1,16 +1,21 @@
 import { query } from "../db/pool.js";
 import { ensureAffected, requireText } from "../utils/payload.js";
+import { queryPage } from "../utils/pagination.js";
 
-export async function listAll() {
-  const result = await query(`
+export async function listAll(_filters = {}, pagination) {
+  const selectSql = `
     SELECT
       campus_id AS id,
       campus_name AS "campusName",
       address
     FROM campus
-    ORDER BY campus_id DESC
-  `);
+  `;
 
+  if (pagination) {
+    return queryPage(query, { selectSql, orderBy: "id DESC", pagination });
+  }
+
+  const result = await query(`${selectSql} ORDER BY campus_id DESC`);
   return result.rows;
 }
 

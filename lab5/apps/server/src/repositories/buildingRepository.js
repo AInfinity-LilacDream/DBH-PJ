@@ -1,8 +1,27 @@
 import { query } from "../db/pool.js";
 import { ensureAffected, optionalText, requireNumber, requireText } from "../utils/payload.js";
+import { queryPage } from "../utils/pagination.js";
 
-export async function listAll() {
-  const result = await query(`
+function addFilter(filters, params, value, sql) {
+  if (!value) {
+    return;
+  }
+
+  params.push(value);
+  filters.push(sql(params.length));
+}
+
+export async function listAll(filters = {}, pagination) {
+  const params = [];
+  const whereFilters = [];
+
+  addFilter(whereFilters, params, filters.campusId, (index) => `b.campus_id = $${index}`);
+  addFilter(whereFilters, params, filters.buildingName ? `%${String(filters.buildingName).trim()}%` : "", (index) => (
+    `b.building_name ILIKE $${index}`
+  ));
+
+  const whereClause = whereFilters.length ? `WHERE ${whereFilters.join(" AND ")}` : "";
+  const selectSql = `
     SELECT
       b.building_id AS id,
       b.building_name AS "buildingName",
@@ -12,9 +31,14 @@ export async function listAll() {
       COALESCE(b.description, '') AS description
     FROM building b
     JOIN campus c ON c.campus_id = b.campus_id
-    ORDER BY b.building_id DESC
-  `);
+    ${whereClause}
+  `;
 
+  if (pagination) {
+    return queryPage(query, { selectSql, params, orderBy: "id DESC", pagination });
+  }
+
+  const result = await query(`${selectSql} ORDER BY b.building_id DESC`, params);
   return result.rows;
 }
 
